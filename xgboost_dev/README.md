@@ -34,9 +34,10 @@
     - 테스트 데이터 내 사기 거래의 100% 탐색(Recall 1.00) 확인
 
 (참고)
-![column_name.png](./img/column_name.png)
--> 데이터 파일이 너무 커서 원본 확인이 어려운 관계로 컬럼명을 추출하는 코드를 통해 직접 컬럼 명을 확인
-![model_score](./img/model_score.png)
+![column_name.png](./img/column_name.png)  
+-> 데이터 파일이 너무 커서 원본 확인이 어려운 관계로 컬럼명을 추출하는 코드를 통해 직접 컬럼 명을 확인  
+  
+![model_score](./img/model_score.png)  
 -> 현재 작성된 AI 모델 학습 결과(정상 및 이상거래내역의 비율 및 수치에 집중, 근거 데이터X)
 
 → 예정 테스크
