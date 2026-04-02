@@ -1,0 +1,19 @@
+# 1. 가상환경 (용량이 크고 각 OS마다 다르므로 제외)
+venv/
+.venv/
+env/
+
+# 2. 데이터 파일 (PaySim 데이터는 수백 MB로 Git에 올리기 부적절)
+data/*.csv
+
+# 3. 환경 변수 (API 키, 보안 정보 포함)
+.env
+
+# 4. 파이썬 캐시 및 체크포인트
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# 5. 학습된 모델 파일 (선택 사항: 용량이 크면 제외 후 별도 스토리지 권장)
+models/*.json
+models/*.bin
