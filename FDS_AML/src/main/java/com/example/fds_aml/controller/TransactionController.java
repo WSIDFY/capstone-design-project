@@ -5,7 +5,6 @@ import com.example.fds_aml.entity.Transaction;
 import com.example.fds_aml.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
@@ -17,11 +16,11 @@ public class TransactionController {
 
     @PostMapping
     public Transaction createTransaction(@RequestBody TransactionRequestDto dto) {
-        return transactionService.save(dto);
+        return transactionService.processTransaction(dto);
     }
 
     @GetMapping
     public List<Transaction> getAllTransactions() {
-        return transactionService.findAll();
+        return transactionService.findAllTransactions();
     }
 }
