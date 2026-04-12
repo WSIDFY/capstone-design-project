@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, average_precision_score
 from basis_generator import FraudAnalyzer
 
-#? [AI모델 성능 검증 및 실행 코드 파일]
+#? [AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정]
 
 def analyze_model_weights(model):
     print("\n🔍 모델 피처 중요도 분석 중...")
@@ -34,7 +34,7 @@ def run_project():
         print("기존 학습된 모델이 없음(전처리 및 신규 학습 시작)")
         
         # [사전 학습 데이터 병합 로드]
-        train_files = ['data/split_0.csv', 'data/split_1.csv']
+        train_files = ['data/split_0.csv', 'data/split_1.csv', 'data/split_2.csv']
         combined_df = pd.concat([preprocess.load_paysim_data(f) for f in train_files])
         
         processed_df = preprocess.engineer_features(combined_df)
@@ -70,8 +70,8 @@ def monitor_realtime(model):    # 실제 시연을 위한 루프
 
     print("👀 거래 내역 수신 대기 중 (3초 간격)...")
     
-    # 임시로 split_2를 읽어서 한 줄씩 처리하는 예시
-    test_data = pd.read_csv('data/split_2.csv') 
+    # split_3을 읽어서 한 줄씩 처리하는 예시
+    test_data = pd.read_csv('data/split_3.csv') 
     
     for i in range(len(test_data)):
         # 1건 추출하여 딕셔너리로 변환

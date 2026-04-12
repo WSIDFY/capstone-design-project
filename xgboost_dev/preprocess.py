@@ -31,7 +31,7 @@ def load_paysim_data(file_path):
     return df
 
 #! 블랙리스트 계좌 리스트 정의 (현재 5개의 사용자)
-BLACKLIST_ACCOUNTS = {'C787055130', 'C773093019', 'C900990754', 'M1564482630', 'M2026717640'}
+BLACKLIST_ACCOUNTS = {'C22182953', 'M649131405', 'C1525028989', 'C634635816', 'M1231371424'}
 
 # *이상거래 식별 시나리오 4가지를 모델이 학습 가능하도록 파생 변수 생성*
 def engineer_features(df):

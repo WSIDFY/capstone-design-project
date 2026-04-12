@@ -1,4 +1,4 @@
-import xgboost as xgb
+import xgboost as xgb 
 
 #? [AI모델 학습 관련 코드]
 
