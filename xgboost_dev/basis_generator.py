@@ -1,10 +1,10 @@
-import time
 import pandas as pd
 import numpy as np
 import shap
 import model_manager
 import preprocess
 import datetime
+from Transaction_generator import transaction_generator
 
 #? [데이터를 받아와서 학습 된 모델을 토대로 검증 후 근거데이터 생성]
 #? 주요 기능: 실시간 거래 분석, SHAP 기반 기여도 산출, 블랙리스트 즉시 판별 및 근거 데이터 생성
@@ -14,13 +14,10 @@ import datetime
 #! 데이터 형식: {'step': 1, 'type': 'TRANSFER', 'amount': 150000, ...} 
 #! ---------------------------------------------------------
 
-def get_realtime_transaction_history():
-    #! [추후 명세 후 수정]---------------------------------------
-    #! 구현 될 제네레이터 혹은 API로부터 데이터를 수신하는 함수 (임시)
-    #! 실제 구현 시에는 여기서 프론트/서버로부터 넘어온 JSON 데이터 받아오기
-    #! ---------------------------------------------------------
-    # return data_from_generator
-    pass
+def get_realtime_transaction_history(file_path='data/split_3.csv', interval_seconds=3):
+    """Transaction_generator에서 거래 데이터를 3초 간격으로 전달하는 생성기를 반환합니다."""
+    # TODO: DB화 이후에는 file_path 대신 DB query/streaming source를 받도록 수정
+    return transaction_generator(file_path=file_path, interval_seconds=interval_seconds)
 
 class FraudAnalyzer:
 
@@ -33,22 +30,71 @@ class FraudAnalyzer:
         # 2. SHAP Explainer 초기화 (트리 모델 전용 TreeExplainer 사용)
         self.explainer = shap.TreeExplainer(self.model)
 
+        # 3. 연쇄 자금세탁 패턴 추적용 메모리
+        #    동일 nameDest로 들어온 금액이 바로 다음 step에서 CASH_OUT으로 빠져나가는지 감지
+        self.transfer_history = {}
+
     # 한 건의 거래 데이터를 받아 탐지하고 Qwen용 근거 데이터 생성
     def analyze_transaction(self, raw_tx_data):
 
         # 실시간 분석 시각 기록
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
 
-        # 양방향 블랙리스트 즉시 판별
-        orig_acc = raw_tx_data.get('nameOrig') # 송신자 계좌
+        # 거래 핵심 필드
+        orig_acc = raw_tx_data.get('nameOrig')  # 송신자 계좌
         dest_acc = raw_tx_data.get('nameDest')  # 수신자 계좌
-        
-        # 송/수신자가 블랙리스트인지 판별
-        is_orig_black = orig_acc in preprocess.BLACKLIST_ACCOUNTS
-        is_dest_black = dest_acc in preprocess.BLACKLIST_ACCOUNTS
-        
+        step = int(raw_tx_data.get('step', 0))
+        tx_type = raw_tx_data.get('type', '')
+        amount = float(raw_tx_data.get('amount', 0.0))
+        oldbalance_org = float(raw_tx_data.get('oldbalanceOrg', 0.0))
+        newbalance_orig = float(raw_tx_data.get('newbalanceOrig', 0.0))
+
+        # 1. 블랙리스트 판별: split_3.csv의 is_blacklist 값 우선 사용
+        blacklist_flag = raw_tx_data.get('is_blacklist')
+        if blacklist_flag is not None:
+            try:
+                flag_value = int(blacklist_flag)
+            except (ValueError, TypeError):
+                flag_value = 0
+
+            is_orig_black = flag_value in (1, 3)
+            is_dest_black = flag_value in (2, 3)
+        else:
+            # TODO: DB화 이후에는 raw_tx_data의 블랙리스트 유무 대신
+            #       DB 블랙리스트 테이블을 조회하는 함수로 대체해야 합니다.
+            # 예: is_orig_black = self.blacklist_service.is_blacklisted(orig_acc)
+            #     is_dest_black = self.blacklist_service.is_blacklisted(dest_acc)
+            is_orig_black = orig_acc in preprocess.BLACKLIST_ACCOUNTS
+            is_dest_black = dest_acc in preprocess.BLACKLIST_ACCOUNTS
+
+        # 2. 보이스피싱 의심 패턴: 잔고 전체를 이체하고 남은 잔고가 0인 경우
+        is_phishing_pattern = amount == oldbalance_org and newbalance_orig == 0
+
+        # 3. 고액 자금세탁 연쇄 패턴: 이전 TRANSFER 수신 계좌가 곧바로 CASH_OUT하는지 추적
+        is_chain_laundering = False
+        laundering_evidence = None
+        if tx_type == 'CASH_OUT':
+            previous = self.transfer_history.get(orig_acc)
+            if previous is not None:
+                prev_step, prev_amount = previous
+                if step in (prev_step, prev_step + 1):
+                    is_chain_laundering = True
+                    laundering_evidence = {
+                        'feature': 'chain_laundering',
+                        'score': 10.0,
+                        'value': orig_acc,
+                        'desc': f"{orig_acc} 계좌가 TRANSFER 후 {step - prev_step} step 이내 CASH_OUT 수행"
+                    }
+
+        # 4. 현재 거래가 TRANSFER이면 연쇄 탐지를 위해 기록 유지
+        if tx_type == 'TRANSFER' and dest_acc:
+            self.transfer_history[dest_acc] = (step, amount)
+
         # 송/수신자 중 블랙리스트에 속한 사용자가 있다면 의심거래내역으로 분류
         is_blacklist = is_orig_black or is_dest_black
+
+        # 보이스피싱 또는 연쇄 자금세탁 패턴이 감지되었을 때 즉시 의심 거래로 판단
+        rule_suspicion = is_phishing_pattern or is_chain_laundering or is_blacklist
 
         # 전처리: 입력된 딕셔너리를 DataFrame으로 변환 후 피처 엔지니어링
         df_tx = pd.DataFrame([raw_tx_data])
@@ -63,8 +109,14 @@ class FraudAnalyzer:
             if is_dest_black:
                 evidence.append({"column": "nameDest", "contribution": 10.0, 
                                  "actual_value": dest_acc, "desc": "⚠️블랙리스트에 등록된 수신자 식별⚠️"})
+            if is_phishing_pattern:
+                evidence.append({"column": "phishing_pattern", "contribution": 10.0,
+                                 "actual_value": amount,
+                                 "desc": "⚠️ 보이스피싱 의심: 전액 송금 후 잔고 0"})
+            if is_chain_laundering and laundering_evidence is not None:
+                evidence.append(laundering_evidence)
             return {
-                "is_suspicious": is_blacklist,
+                "is_suspicious": bool(rule_suspicion),
                 "fraud_probability": 0.0,
                 "is_blacklist": is_blacklist,
                 "evidence_materials": evidence,
@@ -99,14 +151,23 @@ class FraudAnalyzer:
         # *최종 분석 결과 구성*
         tx_analysis = {
                 "timestamp": timestamp,
-                "is_suspicious": bool(prob > 0.8 or is_blacklist), #! 확률이 80% 이상이거나 블랙리스트에 포함된 경우
+                "is_suspicious": bool(rule_suspicion or prob > 0.8), # 모델 예측+사전 규칙 결합
                 "risk_score": round(float(prob), 4),
-                "is_blacklist": is_blacklist,   #! 수정 예정
-                "evidence": top_evidence, # SHAP 근거 (중복 제거됨)
-                "info": raw_tx_data       # 원본 데이터
+                "fraud_probability": round(float(prob), 4),
+                "is_blacklist": is_blacklist,
+                "evidence": top_evidence,
+                "evidence_materials": top_evidence,
+                "info": raw_tx_data
             }
 
-        # 블랙리스트 근거를 최상단에 삽입 (명칭 변경 반영)
+        # 규칙 탐지 근거를 최상단에 삽입
+        if is_phishing_pattern:
+            tx_analysis["evidence"].insert(0, {
+                "feature": "phishing_pattern", "score": 10.0, "value": amount,
+                "desc": "⚠️ 보이스피싱 의심: 잔액 전체 송금 후 잔고 0"
+            })
+        if is_chain_laundering and laundering_evidence is not None:
+            tx_analysis["evidence"].insert(0, laundering_evidence)
         if is_orig_black:
             tx_analysis["evidence"].insert(0, {
                 "feature": "nameOrig", "score": 10.0, "value": orig_acc, "desc": "⚠️블랙리스트 송신자 식별"
@@ -125,17 +186,7 @@ if __name__ == "__main__":
     
     print("🛰️ 실시간 의심 거래 탐지 엔진 가동 중...")
     
-    while True:
-        # 1. 데이터 수신 (팀원이 구현할 부분에서 데이터 획득)
-        # current_tx = get_realtime_transaction_history()
-        
-        # 테스트용 임시 데이터 예시 (제네레이터가 3초마다 줄 데이터 형태)
-        current_tx = {
-            'step': 1, 'type': 'TRANSFER', 'amount': 10000000, 
-            'oldbalanceOrg': 10000000, 'newbalanceOrig': 0,
-            'oldbalanceDest': 0, 'newbalanceDest': 0
-        }
-
+    for current_tx in get_realtime_transaction_history():
         # 2. 탐지 및 분석 수행
         result = analyzer.analyze_transaction(current_tx)
 
@@ -143,5 +194,3 @@ if __name__ == "__main__":
             print(f"🚨 [의심거래 발견] 확률: {result['risk_score'] * 100}%")
             print(f"📊 의심거래 근거 데이터 : {result['evidence']}")
             # 여기서 다른 팀원(Qwen 담당)의 함수를 호출하거나 DB/Queue에 저장
-        
-        time.sleep(3) # 3초 간격 대기 로직 (팀원 로직과 동기화)

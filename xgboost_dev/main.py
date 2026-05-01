@@ -1,12 +1,11 @@
 import preprocess
 import train
 import model_manager
-import os
-import time  # 실시간 간격 조절용
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, average_precision_score
 from basis_generator import FraudAnalyzer
+from Transaction_generator import transaction_generator
 
 #? [AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정]
 #? 주요 기능: 전체 파이프라인 제어(학습/로드 분기) 및 실시간 탐지 시뮬레이션 루프 실행
@@ -74,13 +73,7 @@ def monitor_realtime(model):    # 실제 시연을 위한 루프
 
     print("👀 거래 내역 수신 대기 중 (3초 간격)...")
     
-    # split_3을 읽어서 한 줄씩 처리하는 예시
-    test_data = pd.read_csv('data/split_3.csv') 
-    
-    for i in range(len(test_data)):
-        # 1건 추출하여 딕셔너리로 변환
-        current_tx = test_data.iloc[i].to_dict() 
-        
+    for current_tx in transaction_generator():
         # [수정 포인트 3] analyzer를 통해 탐지 및 근거 생성 한 번에 처리
         result = analyzer.analyze_transaction(current_tx)
         
@@ -89,8 +82,6 @@ def monitor_realtime(model):    # 실제 시연을 위한 루프
             print(f"📊 Qwen 전달 근거 재료: {result['evidence_materials']}")    #! Qwen연동함수로 변경 예정
         else:
             print(f"🟢 정상 거래 통과 (확률: {result['fraud_probability'] * 100:.2f}%)")
-        
-        time.sleep(3) # 3초 대기
 
 # 코드 실행
 if __name__ == "__main__":

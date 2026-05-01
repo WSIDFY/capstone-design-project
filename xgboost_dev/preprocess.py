@@ -6,9 +6,11 @@ import os
 #? 주요 기능 : 데이터 로딩, 자료형 최적화(float32 등), 블랙리스트 관리, 파생 변수(잔액 오류 등) 생성
 
 # 상대 경로를 사용하여 data 폴더 내 파일 지정
+# TODO: DB화 이후에는 이 CSV 경로 대신 DB 조회 함수로 대체하는 것이 목표
 DATA_PATH = os.path.join('data', 'paysim_data.csv')
 
 # *컬럼별 데이터 타입 지정*
+# TODO: DB화 후 이 함수는 DB에서 거래 데이터를 읽어오는 쿼리/ORM 호출로 교체합니다.
 def load_paysim_data(file_path):
     # 메모리 절약을 위해 데이터 타입 지정 (float64 -> float32)
     dtypes = {
@@ -36,6 +38,8 @@ BLACKLIST_ACCOUNTS = {'C22182953', 'M649131405', 'C1525028989', 'C634635816', 'M
 
 
 # *이상거래 식별 시나리오 4가지를 모델이 학습 가능하도록 파생 변수 생성*
+# DB화 이후에는 BLACKLIST_ACCOUNTS 대신 DB의 블랙리스트 테이블/캐시를 조회하도록 변경예정
+# TODO: DB화 후에는 거래 DataFrame 생성 단계에서 DB 컬럼명과 매핑이 일치하는지 확인 필요
 def engineer_features(df):
     print("피처 엔지니어링 진행 중...")
 
@@ -43,7 +47,8 @@ def engineer_features(df):
     if 'type' in df.columns:
         df['type'] = df['type'].astype('category')
 
-    # 송금 받는 계좌(nameDest)가 "블랙리스트"에 포함되어 있는지 확인
+    # 송신자와 수신자 각각 블랙리스트 여부를 표시
+    df['is_blacklist_orig'] = df['nameOrig'].isin(BLACKLIST_ACCOUNTS).astype(int)
     df['is_blacklist_dest'] = df['nameDest'].isin(BLACKLIST_ACCOUNTS).astype(int)
 
     # 1. 계좌 잔액 오류 판별 (newbalance = oldbalance - amount)
