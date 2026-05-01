@@ -7,6 +7,7 @@ import preprocess
 import datetime
 
 #? [데이터를 받아와서 학습 된 모델을 토대로 검증 후 근거데이터 생성]
+#? 주요 기능: 실시간 거래 분석, SHAP 기반 기여도 산출, 블랙리스트 즉시 판별 및 근거 데이터 생성
 
 #! [추후 명세 후 수정]----------------------------------------
 #! 실시간 거래 내역을 받아오는 가상의 변수/함수
@@ -89,17 +90,18 @@ class FraudAnalyzer:
                 "actual_value": raw_tx_data.get(name, "N/A") # 원본 수치
             })
 
-        # 기여도 절댓값 기준 상위 3개만 추출 (Qwen에게 줄 핵심 근거 데이터)
+        # 기여도 절댓값 기준 상위 3개만 추출 (단, nameOrig, nameDest는 제외)
         top_evidence = [
                 e for e in sorted(evidence_list, key=lambda x: abs(x['contribution']), reverse=True)
                 if e['column'] not in ['nameOrig', 'nameDest']
             ][:3]
         
+        # *최종 분석 결과 구성*
         tx_analysis = {
                 "timestamp": timestamp,
-                "is_suspicious": bool(prob > 0.8 or is_blacklist),
+                "is_suspicious": bool(prob > 0.8 or is_blacklist), #! 확률이 80% 이상이거나 블랙리스트에 포함된 경우
                 "risk_score": round(float(prob), 4),
-                "is_blacklist": is_blacklist,
+                "is_blacklist": is_blacklist,   #! 수정 예정
                 "evidence": top_evidence, # SHAP 근거 (중복 제거됨)
                 "info": raw_tx_data       # 원본 데이터
             }

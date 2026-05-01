@@ -9,7 +9,9 @@ from sklearn.metrics import classification_report, average_precision_score
 from basis_generator import FraudAnalyzer
 
 #? [AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정]
+#? 주요 기능: 전체 파이프라인 제어(학습/로드 분기) 및 실시간 탐지 시뮬레이션 루프 실행
 
+# 모델의 피처 중요도 분석 (학습된 모델이 있을 때만 실행)
 def analyze_model_weights(model):
     print("\n🔍 모델 피처 중요도 분석 중...")
     
@@ -22,6 +24,7 @@ def analyze_model_weights(model):
     for i, (feat, score) in enumerate(sorted_gain[:5], 1):
         print(f"{i}. {feat}: {score:.2f}")
 
+# 전체 프로젝트 실행 함수
 def run_project():
     # 1. 기존 모델 존재 여부 확인 (model_manager 활용)
     model = model_manager.load_existing_model()
@@ -30,6 +33,8 @@ def run_project():
         print("기존 학습된 모델 사용(학습 단계 스킵)")
         #*피처 중요도 분석 그래프 확인(아래 코드의 주석을 풀고 가동하면 확인 가능)
         #analyze_model_weights(model)
+
+    # 2. 모델이 없을 경우: 데이터 전처리 및 신규 학습 진행
     else:
         print("기존 학습된 모델이 없음(전처리 및 신규 학습 시작)")
         
@@ -51,8 +56,7 @@ def run_project():
         probs = model.predict_proba(X_test)[:, 1]
         print(f"✅ 초기 모델 AUPRC: {average_precision_score(y_test, probs):.4f}")
 
-
-    # 3. 모델이 존재할 경우: 실시간 감시 엔진 가동 (split_2, 3 대상)
+    # 3. 모델이 존재할 경우: 실시간 감시 엔진 가동
     print("\n 실시간 의심거래 탐지 엔진 모드로 전환합니다.")
     
     #! [다른 팀원이 구현할 데이터 수신 로직 시뮬레이션]
@@ -82,7 +86,7 @@ def monitor_realtime(model):    # 실제 시연을 위한 루프
         
         if result["is_suspicious"]:
             print(f"🚨 [의심거래 포착] 사기 확률: {result['fraud_probability'] * 100:.2f}%")
-            print(f"📊 Qwen 전달 근거 재료: {result['evidence_materials']}")
+            print(f"📊 Qwen 전달 근거 재료: {result['evidence_materials']}")    #! Qwen연동함수로 변경 예정
         else:
             print(f"🟢 정상 거래 통과 (확률: {result['fraud_probability'] * 100:.2f}%)")
         

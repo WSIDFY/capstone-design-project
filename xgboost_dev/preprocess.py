@@ -3,6 +3,7 @@ import numpy as np
 import os
 
 #? [데이터 전처리 파이프라인 파일 & 블랙리스트 계좌 관리]
+#? 주요 기능 : 데이터 로딩, 자료형 최적화(float32 등), 블랙리스트 관리, 파생 변수(잔액 오류 등) 생성
 
 # 상대 경로를 사용하여 data 폴더 내 파일 지정
 DATA_PATH = os.path.join('data', 'paysim_data.csv')
@@ -30,8 +31,9 @@ def load_paysim_data(file_path):
 
     return df
 
-#! 블랙리스트 계좌 리스트 정의 (현재 5개의 사용자)
+#! 블랙리스트 계좌 리스트 정의 (현재 5개의 사용자) -> DB조회로 수정 예정
 BLACKLIST_ACCOUNTS = {'C22182953', 'M649131405', 'C1525028989', 'C634635816', 'M1231371424'}
+
 
 # *이상거래 식별 시나리오 4가지를 모델이 학습 가능하도록 파생 변수 생성*
 def engineer_features(df):
@@ -44,7 +46,7 @@ def engineer_features(df):
     # 송금 받는 계좌(nameDest)가 "블랙리스트"에 포함되어 있는지 확인
     df['is_blacklist_dest'] = df['nameDest'].isin(BLACKLIST_ACCOUNTS).astype(int)
 
-    # 1. 계좌 잔액 오류 (newbalance = oldbalance - amount)
+    # 1. 계좌 잔액 오류 판별 (newbalance = oldbalance - amount)
     df['errorBalanceOrig'] = df['newbalanceOrig'] + df['amount'] - df['oldbalanceOrg']
     df['errorBalanceDest'] = df['oldbalanceDest'] + df['amount'] - df['newbalanceDest']
     
