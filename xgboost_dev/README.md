@@ -11,8 +11,8 @@
 
 |       Front-end      |       Back-end        |       Infra      |       AI      |                          
 | :--------------------------: |  :-----------------------------------: | :------------------------------------:| :------------------------------------:|
-| <img src="https://github.com/donghwanJ.png" width="100px" alt="정동환"/> | <img src="https://github.com/yeeunnnnn.png" width="100px" alt="강예은"/> | <img src="https://github.com/Park sang min.png" width="100px" alt="박상민"/> |  <img src="https://github.com/WSIDFY.png" width="100px" alt="김민재"/>  |
-|[정동환](https://github.com/donghwanJ)|[강예은](https://github.com/yeeunnnnn)|[박상민](https://github.com/Park sang min)|[김민재](https://github.com/WSIDFY)|
+| <img src="https://github.com/donghwanJ.png" width="100px" alt="정동환"/> | <img src="https://github.com/yeeunnnnn.png" width="100px" alt="강예은"/> | <img src="https://github.com/qkrtkdals962.png" width="100px" alt="박상민"/> |  <img src="https://github.com/WSIDFY.png" width="100px" alt="김민재"/>  |
+|[정동환](https://github.com/donghwanJ)|[강예은](https://github.com/yeeunnnnn)|[박상민](https://github.com/qkrtkdals962)|[김민재](https://github.com/WSIDFY)|
 
 ---
 #### 주요 라이브러리
