@@ -6,11 +6,11 @@ import os
 #? 주요 기능 : 데이터 로딩, 자료형 최적화(float32 등), 블랙리스트 관리, 파생 변수(잔액 오류 등) 생성
 
 # 상대 경로를 사용하여 data 폴더 내 파일 지정
-# TODO: DB화 이후에는 이 CSV 경로 대신 DB 조회 함수로 대체하는 것이 목표
+# TODO: DB화 이후에는 이 CSV 경로 대신 DB 조회 함수로 대체
 DATA_PATH = os.path.join('data', 'paysim_data.csv')
 
 # *컬럼별 데이터 타입 지정*
-# TODO: DB화 후 이 함수는 DB에서 거래 데이터를 읽어오는 쿼리/ORM 호출로 교체합니다.
+# TODO: DB화 후 이 함수는 DB에서 거래 데이터를 읽어오는 쿼리/ORM 호출로 교체
 def load_paysim_data(file_path):
     # 메모리 절약을 위해 데이터 타입 지정 (float64 -> float32)
     dtypes = {
@@ -26,7 +26,7 @@ def load_paysim_data(file_path):
     }
     
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"❌ 파일을 찾을 수 없습니다: {file_path}")
+        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {file_path}")
 
     print(f"데이터 로딩 중: {file_path}")
     df = pd.read_csv(file_path, dtype=dtypes)
@@ -75,7 +75,7 @@ def check_imbalance(df):
     
     scale_pos_weight = (total_count - fraud_count) / fraud_count
     
-    print(f"✅ 분석 결과:")
+    print(f"분석 결과:")
     print(f" - 전체 거래 수: {total_count:,}건")
     print(f" - 사기 거래 수: {fraud_count:,}건")
     print(f" - 사기 거래 비율: {ratio:.4f}%")

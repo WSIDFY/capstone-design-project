@@ -53,7 +53,7 @@ def run_project():
         
         # 성능 확인 (초기 1회)
         probs = model.predict_proba(X_test)[:, 1]
-        print(f"✅ 초기 모델 AUPRC: {average_precision_score(y_test, probs):.4f}")
+        print(f"초기 모델 AUPRC: {average_precision_score(y_test, probs):.4f}")
 
     # 3. 모델이 존재할 경우: 실시간 감시 엔진 가동
     print("\n 실시간 의심거래 탐지 엔진 모드로 전환합니다.")
@@ -71,17 +71,17 @@ def monitor_realtime(model):    # 실제 시연을 위한 루프
     """
     analyzer = FraudAnalyzer() 
 
-    print("👀 거래 내역 수신 대기 중 (3초 간격)...")
+    print("거래 내역 수신 대기 중 (3초 간격)...")
     
     for current_tx in transaction_generator():
         # [수정 포인트 3] analyzer를 통해 탐지 및 근거 생성 한 번에 처리
         result = analyzer.analyze_transaction(current_tx)
         
         if result["is_suspicious"]:
-            print(f"🚨 [의심거래 포착] 사기 확률: {result['fraud_probability'] * 100:.2f}%")
-            print(f"📊 Qwen 전달 근거 재료: {result['evidence_materials']}")    #! Qwen연동함수로 변경 예정
+            print(f"[의심거래 포착] 사기 확률: {result['fraud_probability'] * 100:.2f}%")
+            print(f"근거 재료: {result['evidence_materials']}")    #! Qwen연동함수로 변경 예정
         else:
-            print(f"🟢 정상 거래 통과 (확률: {result['fraud_probability'] * 100:.2f}%)")
+            print(f"정상 거래 통과 (확률: {result['fraud_probability'] * 100:.2f}%)")
 
 # 코드 실행
 if __name__ == "__main__":
