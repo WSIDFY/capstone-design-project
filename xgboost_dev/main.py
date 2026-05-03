@@ -72,10 +72,22 @@ def monitor_realtime(model):    # 실제 시연을 위한 루프
         result = analyzer.analyze_transaction(current_tx)
         
         if result["is_suspicious"]:
-            print(f"[이상거래 포착] 사기 확률: {result['fraud_probability'] * 100:.2f}%")
-            print(f"근거 재료: {result['evidence_materials']}")    #! Qwen연동함수로 변경 예정
+            print(f"[이상거래 포착] 사기 확률: {result['risk_score'] * 100:.2f}%")
+            print(f"근거 재료: {result['evidence']}")
+            
+            #! [Qwen 연동 코드 작성]
+            # result 안에는 다음 정보가 모두 포함됨:
+            #   - timestamp: 거래 수신 시각
+            #   - is_suspicious: 의심거래 판정
+            #   - is_blacklist: 블랙리스트 여부
+            #   - risk_score: 사기 확률
+            #   - evidence: 근거 데이터 (상위 3개 피처)
+            #   - info: 원본 거래 정보
+            # 예: qwen_response = send_to_qwen(result)
+            pass
+
         else:
-            print(f"정상 거래(확률: {result['fraud_probability'] * 100:.2f}%)")
+            print(f"정상 거래(확률: {result['risk_score'] * 100:.2f}%)")
 
 # 코드 실행
 if __name__ == "__main__":
