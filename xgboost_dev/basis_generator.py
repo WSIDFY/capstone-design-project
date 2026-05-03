@@ -10,9 +10,8 @@ from Transaction_generator import transaction_generator
 #? 주요 기능: 실시간 거래 분석, SHAP 기반 기여도 산출, 블랙리스트 즉시 판별 및 근거 데이터 생성
 
 def get_realtime_transaction_history(file_path='data/split_3.csv', interval_seconds=3):
-    """Transaction_generator에서 거래 데이터를 3초 간격으로 전달하는 생성기를 반환합니다."""
+    return transaction_generator(file_path=file_path, interval_seconds=interval_seconds)    # 생성기 함수 호출
     # TODO: DB화 이후에는 file_path 대신 DB query/streaming source를 받도록 수정
-    return transaction_generator(file_path=file_path, interval_seconds=interval_seconds)
 
 class FraudAnalyzer:
 
@@ -25,7 +24,7 @@ class FraudAnalyzer:
         # SHAP Explainer 초기화 (트리 모델 전용 TreeExplainer 사용)
         self.explainer = shap.TreeExplainer(self.model)
 
-        # 연쇄 자금세탁 패턴 추적용 메모리(동일 nameDest로 들어온 금액이 바로 다음 step에서 CASH_OUT으로 빠져나가는지 감지)
+        # 자금세탁 패턴 추적용 메모리(동일 nameDest로 들어온 금액이 바로 다음 step에서 CASH_OUT으로 빠져나가는지 감지)
         self.transfer_history = {}
 
     # 한 건의 거래 데이터를 받아 탐지하고 Qwen용 근거 데이터 생성
@@ -60,10 +59,10 @@ class FraudAnalyzer:
             is_orig_black = orig_acc in preprocess.BLACKLIST_ACCOUNTS
             is_dest_black = dest_acc in preprocess.BLACKLIST_ACCOUNTS
 
-        # 보이스피싱 의심 패턴: 잔고 전체를 이체하고 남은 잔고가 0인 경우
+        # 보이스피싱 의심 패턴(잔고 전체를 이체하고 남은 잔고가 0인 경우)
         is_phishing_pattern = amount == oldbalance_org and newbalance_orig == 0
 
-        # 고액 자금세탁 연쇄 패턴: 이전 TRANSFER 수신 계좌가 곧바로 CASH_OUT하는지 추적
+        # 고액 자금세탁 연쇄 패턴(이전 TRANSFER 수신 계좌가 곧바로 CASH_OUT하는지 추적)
         is_chain_laundering = False
         laundering_evidence = None
         if tx_type == 'CASH_OUT':
@@ -108,6 +107,7 @@ class FraudAnalyzer:
                                  "desc": "보이스피싱 의심: 전액 송금 후 잔고 0원"})
             if is_chain_laundering and laundering_evidence is not None:
                 evidence.append(laundering_evidence)
+                
             return {
                 "is_suspicious": bool(rule_suspicion),
                 "fraud_probability": 0.0,
