@@ -6,6 +6,13 @@
 ---
 ### 프로젝트 목표
 - 가상의 거래내역 데이터를 기반으로 실시간 의심거래 패턴을 탐지하고 관제할 수 있는 대시보드형 시스템을 구축합니다.
+---
+## 팀원 소개
+
+|       Front-end      |       Back-end        |       Infra      |       AI      |                          
+| :--------------------------: |  :-----------------------------------: | :------------------------------------:| :------------------------------------:|
+| <img src="https://github.com/donghwanJ.png" width="100px" alt="정동환"/> | <img src="https://github.com/yeeunnnnn.png" width="100px" alt="강예은"/> | <img src="https://github.com/Park sang min.png" width="100px" alt="박상민"/> |  <img src="https://github.com/WSIDFY.png" width="100px" alt="김민재"/>  |
+|[정동환](https://github.com/donghwanJ)|[강예은](https://github.com/yeeunnnnn)|[박상민](https://github.com/Park sang min)|[김민재](https://github.com/WSIDFY)|
 
 ---
 #### 주요 라이브러리
