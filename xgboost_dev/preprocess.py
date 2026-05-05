@@ -33,7 +33,7 @@ def load_paysim_data(file_path):
 
     return df
 
-#! 블랙리스트 계좌 리스트 정의 (현재 5개의 사용자) -> DB조회로 수정 예정
+#TODO 블랙리스트 계좌 리스트 정의 (현재 5개의 사용자) -> DB조회로 수정 예정
 BLACKLIST_ACCOUNTS = {'C22182953', 'M649131405', 'C1525028989', 'C634635816', 'M1231371424'}
 
 
@@ -48,8 +48,8 @@ def engineer_features(df):
         df['type'] = df['type'].astype('category')
 
     # 송신자와 수신자 각각 블랙리스트 여부를 표시
-    df['is_blacklist_orig'] = df['nameOrig'].isin(BLACKLIST_ACCOUNTS).astype(int)
-    df['is_blacklist_dest'] = df['nameDest'].isin(BLACKLIST_ACCOUNTS).astype(int)
+    df['is_blacklist_orig'] = df['sender'].isin(BLACKLIST_ACCOUNTS).astype(int)
+    df['is_blacklist_dest'] = df['receiver'].isin(BLACKLIST_ACCOUNTS).astype(int)
 
     # 1. 계좌 잔액 오류 판별 (newbalance = oldbalance - amount)
     df['errorBalanceOrig'] = df['newbalanceOrig'] + df['amount'] - df['oldbalanceOrg']

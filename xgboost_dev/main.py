@@ -1,18 +1,55 @@
+from typing import Any, Dict, List, Union
+
+import pandas as pd
 import preprocess
 import train
 import model_manager
-import pandas as pd
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, average_precision_score
+from sklearn.metrics import average_precision_score
 from basis_generator import FraudAnalyzer
-from Transaction_generator import transaction_generator     #TODO: 추후에 개발된 DB에서 실시간 거래를 읽어오는 생성기 함수로 대체
+import uvicorn
+
+app = FastAPI()
+
+# AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정
+class EvidenceMaterial(BaseModel):
+    column: str
+    contribution: float
+    actual_value: Union[str, int, float, bool]
+    desc: str
+
+
+class TransactionRequest(BaseModel):
+    step: int
+    type: str
+    amount: Union[int, float]
+    sender: str
+    oldbalanceOrg: float
+    newbalanceOrig: float
+    receiver: str
+    oldbalanceDest: float
+    newbalanceDest: float
+    transactionDate: str
+
+    class Config:
+        extra = "allow"
+
+
+class AiAnalysisResponse(BaseModel):
+    is_suspicious: bool
+    fraud_probability: float
+    is_blacklist: bool
+    evidence_materials: List[EvidenceMaterial]
+    raw_data: Dict[str, Any]
 
 #? [AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정]
-#? 주요 기능: 전체 파이프라인 제어(학습/로드 분기) 및 실시간 탐지 시뮬레이션 루프 실행
+#? 주요 기능: 전체 파이프라인 제어(학습/로드 분기) 및 실시간 탐지 API 서버 실행
 
 # 모델의 피처 중요도 분석 (학습된 모델이 있을 때만 실행)
 def analyze_model_weights(model):
-    print("\n🔍 모델 피처 중요도 분석 중...")
+    print("\n 모델 피처 중요도 분석 중...")
     
     # Gain: 해당 피처가 노드를 분리할 때 줄인 '불순도'의 총합 (가장 신뢰도 높음)
     importance_gain = model.get_booster().get_score(importance_type='gain')
@@ -23,72 +60,87 @@ def analyze_model_weights(model):
     for i, (feat, score) in enumerate(sorted_gain[:5], 1):
         print(f"{i}. {feat}: {score:.2f}")
 
-# 전체 프로젝트 실행 함수
-def run_project():
-    # 1. 기존 모델 존재 여부 확인 (model_manager 활용)
-    model = model_manager.load_existing_model()
-    
-    if model is not None:
-        print("기존 학습된 모델 사용(학습 단계 스킵)")
-        #*피처 중요도 분석 그래프 확인(아래 코드의 주석을 풀고 가동하면 확인 가능)
-        #analyze_model_weights(model)
+# 모델이 존재하면 로드, 없으면 학습 후 저장
+def train_model():
+    print("기존 학습된 모델이 없음(전처리 및 신규 학습 시작)")
+    train_files = ['data/split_0.csv', 'data/split_1.csv', 'data/split_2.csv']
+    combined_df = pd.concat([preprocess.load_paysim_data(f) for f in train_files])
+    processed_df = preprocess.engineer_features(combined_df)
+    weight = preprocess.check_imbalance(processed_df)
+    X = processed_df.drop(['isFraud', 'isFlaggedFraud', 'sender', 'receiver'], axis=1, errors='ignore')
+    y = processed_df['isFraud']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    model = train.train_xgb_model(X_train, y_train, weight)
+    model_manager.save_model(model)
+    probs = model.predict_proba(X_test)[:, 1]
+    print(f"초기 모델 AUPRC: {average_precision_score(y_test, probs):.4f}")
 
-    # 2. 모델이 없을 경우: 데이터 전처리 및 신규 학습 진행
-    else:
-        print("기존 학습된 모델이 없음(전처리 및 신규 학습 시작)")
-        
-        # [사전 학습 데이터 병합 로드]
-        train_files = ['data/split_0.csv', 'data/split_1.csv', 'data/split_2.csv']
-        combined_df = pd.concat([preprocess.load_paysim_data(f) for f in train_files])
-        
-        processed_df = preprocess.engineer_features(combined_df)
-        weight = preprocess.check_imbalance(processed_df)
-        
-        X = processed_df.drop(['isFraud', 'isFlaggedFraud', 'nameOrig', 'nameDest'], axis=1, errors='ignore')
-        y = processed_df['isFraud']
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-        
-        model = train.train_xgb_model(X_train, y_train, weight)
-        model_manager.save_model(model)
-        
-        # 성능 확인 (초기 1회)
-        probs = model.predict_proba(X_test)[:, 1]
-        print(f"초기 모델 AUPRC: {average_precision_score(y_test, probs):.4f}")
 
-    # 3. 모델이 존재할 경우: 실시간 탐지 엔진 가동
-    print("\n 실시간 의심거래 탐지를 시작합니다.")
+def initialize_analyzer() -> FraudAnalyzer:
+    if model_manager.load_existing_model() is None:
+        train_model()
+    return FraudAnalyzer()
 
-    # 실제 시연을 위한 루프 예시 (split_3 사용)}
-    monitor_realtime(model)
-
-def monitor_realtime(model):    # 실제 시연을 위한 루프
-
-    analyzer = FraudAnalyzer() 
-
-    print("거래 내역 수신 대기 중...")
-    
-    for current_tx in transaction_generator():
-        # [수정 포인트 3] analyzer를 통해 탐지 및 근거 생성 한 번에 처리
-        result = analyzer.analyze_transaction(current_tx)
-        
-        if result["is_suspicious"]:
-            print(f"[이상거래 포착] 사기 확률: {result['risk_score'] * 100:.2f}%")
-            print(f"근거 재료: {result['evidence']}")
-            
-            #! [Qwen 연동 코드 작성]
-            # result 안에는 다음 정보가 모두 포함됨:
-            #   - timestamp: 거래 수신 시각
-            #   - is_suspicious: 의심거래 판정
-            #   - is_blacklist: 블랙리스트 여부
-            #   - risk_score: 사기 확률
-            #   - evidence: 근거 데이터 (상위 3개 피처)
-            #   - info: 원본 거래 정보
-            # 예: qwen_response = send_to_qwen(result)
-            pass
-
+# 실시간 거래 분석 API
+def convert_evidence_materials(evidence_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    materials: List[Dict[str, Any]] = []
+    for item in evidence_list:
+        if 'column' in item:
+            column_name = item['column']
+            contribution = float(item.get('contribution', 0.0))
+            actual_value = item.get('actual_value', 'N/A')
+            desc = item.get('desc') or str(column_name)
+        elif 'feature' in item:
+            column_name = item['feature']
+            contribution = float(item.get('score', 0.0))
+            actual_value = item.get('value', 'N/A')
+            desc = item.get('desc') or str(column_name)
         else:
-            print(f"정상 거래(확률: {result['risk_score'] * 100:.2f}%)")
+            column_name = str(item.get('column', 'unknown'))
+            contribution = float(item.get('contribution', 0.0))
+            actual_value = item.get('actual_value', 'N/A')
+            desc = item.get('desc') or str(column_name)
 
-# 코드 실행
+        materials.append({
+            'column': column_name,
+            'contribution': contribution,
+            'actual_value': actual_value,
+            'desc': desc
+        })
+    return materials
+
+
+@app.on_event("startup")
+async def startup_event():
+    app.state.analyzer = initialize_analyzer()
+    print("AI 서버 준비 완료: 모델 로드 및 FraudAnalyzer 생성 완료")
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+# 실시간 거래 분석 API 엔드포인트
+@app.post("/predict", response_model=AiAnalysisResponse)
+def predict(transaction: TransactionRequest):
+    analyzer: FraudAnalyzer = app.state.analyzer
+    raw_tx_data = transaction.dict()
+
+    try:
+        result = analyzer.analyze_transaction(raw_tx_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"거래 분석 중 오류가 발생했습니다: {e}")
+
+    evidence_materials = convert_evidence_materials(result.get('evidence', []))
+    return {
+        'is_suspicious': result['is_suspicious'],
+        'fraud_probability': result['risk_score'],
+        'is_blacklist': result['is_blacklist'],
+        'evidence_materials': evidence_materials,
+        'raw_data': result.get('info', raw_tx_data)
+    }
+
+
 if __name__ == "__main__":
-    run_project()
+    uvicorn.run(app, host="0.0.0.0", port=5000)
+
