@@ -44,8 +44,8 @@ class AiAnalysisResponse(BaseModel):
     evidence_materials: List[EvidenceMaterial]
     raw_data: Dict[str, Any]
 
-# [AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정]
-# 주요 기능: 전체 파이프라인 제어(학습/로드 분기) 및 실시간 탐지 API 서버 실행
+#? [AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정]
+#? 주요 기능: 전체 파이프라인 제어(학습/로드 분기) 및 실시간 탐지 API 서버 실행
 
 # 모델의 피처 중요도 분석 (학습된 모델이 있을 때만 실행)
 def analyze_model_weights(model):
