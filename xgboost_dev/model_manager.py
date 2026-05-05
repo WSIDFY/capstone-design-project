@@ -1,8 +1,8 @@
 import os
 import xgboost as xgb
 
-#? [학습이 완료된 AI모델의 저장 및 로드 관련 코드]
-#? 주요 기능: 학습된 모델의 JSON 포맷 저장 및 로드 관리
+# [학습이 완료된 AI모델의 저장 및 로드 관련 코드]
+# 주요 기능: 학습된 모델의 JSON 포맷 저장 및 로드 관리
 # XGBoost가 학습한 수학적 가중치와 결정 트리(Decision Tree) 구조를 포함한 데이터가 저장된 AI모델 저장
 MODEL_DIR = 'models'
 MODEL_PATH = os.path.join(MODEL_DIR, 'fds_xgb_model.json')

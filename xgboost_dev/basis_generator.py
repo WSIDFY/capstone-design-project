@@ -5,9 +5,9 @@ import model_manager
 import preprocess
 import datetime
 
-#? [데이터를 받아와서 학습 된 모델을 토대로 검증 후 근거데이터 생성]
-#? 주요 기능: 실시간 거래 분석, SHAP 기반 기여도 산출, 블랙리스트 즉시 판별 및 근거 데이터 생성
-#? FDS_AML 내부 생성기가 거래를 생성하여 백엔드로 전송하면 이 모듈이 해당 거래를 분석합니다.
+# [데이터를 받아와서 학습 된 모델을 토대로 검증 후 근거데이터 생성]
+# 주요 기능: 실시간 거래 분석, SHAP 기반 기여도 산출, 블랙리스트 즉시 판별 및 근거 데이터 생성
+# FDS_AML 내부 생성기가 거래를 생성하여 백엔드로 전송하면 이 모듈이 해당 거래를 분석합니다.
 
 class FraudAnalyzer:
 
@@ -181,7 +181,7 @@ class FraudAnalyzer:
         return tx_analysis  # Qwen으로 전달되는 최종 분석 결과
 
 
-#? XGBoost 머신러닝 실행 코드
+# XGBoost 머신러닝 실행 코드
 if __name__ == "__main__":
     analyzer = FraudAnalyzer()
 
