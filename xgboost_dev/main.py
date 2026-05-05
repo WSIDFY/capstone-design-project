@@ -20,7 +20,7 @@ class EvidenceMaterial(BaseModel):
     actual_value: Union[str, int, float, bool]
     desc: str
 
-
+# 요청받은 거래내역 데이터의 형식 정의
 class TransactionRequest(BaseModel):
     step: int
     type: str
