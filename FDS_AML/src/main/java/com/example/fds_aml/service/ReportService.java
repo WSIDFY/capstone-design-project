@@ -9,7 +9,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 
-// 💡 JSON 껍데기 까는 가위(ObjectMapper) 임포트 추가!
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -36,18 +35,34 @@ public class ReportService {
         
         String evidenceSummary = aiResponse.getEvidenceMaterials().stream()
                 .map(AiAnalysisResponseDto.EvidenceMaterial::getDesc)
-                .collect(Collectors.joining("\n- "));
+                .collect(Collectors.joining("\n"));
+
+        Map<String, Object> rawData = aiResponse.getRawData();
+        String amount = rawData != null && rawData.get("amount") != null ? rawData.get("amount").toString() : "알 수 없음";
+        String sender = rawData != null && rawData.get("sender") != null ? rawData.get("sender").toString() : "미상";
+        String receiver = rawData != null && rawData.get("receiver") != null ? rawData.get("receiver").toString() : "미상";
+        
+        int probPercent = (int) (aiResponse.getFraudProbability() * 100);
 
         String prompt = String.format(
-            "너는 은행의 FDS(이상금융거래탐지) 관제 요원을 위한 시니어 분석 전문가야 아래 의심 거래 시나리오 판단 기준을 완벽하게 숙지해\n\n" +
-            "[의심 거래 시나리오 기준]\n" +
-            "1 보이스피싱 비정상적 전액성(이체 후 잔액 0원 수렴) 및 과거 거래 이력이 없는 신규 관계성 존재 (주로 TRANSFER)\n" +
-            "2 자금세탁(연쇄성/Chaining) 자금 이체 후 1~2 step 내에 다시 타 계좌로 이체되거나 현금화(CASH_OUT)되는 빠른 통과 계좌(Pass-through) 패턴\n" +
-            "3 자금세탁(구조화/Layering) 1 step 내에 동일 발신인이 다수의 신규/유령 수취인에게 자금을 쪼개어 송금 송금액 합계가 기존 잔액의 95퍼센트 이상이며 금액이 균등함\n" +
-            "4 블랙리스트 과거 사기 이력이 식별된 위험 계좌와의 거래\n\n" +
-            "[AI 모델 탐지 근거]\n- %s\n\n" +
-            "위 탐지 근거를 분석해서 이 거래가 어떤 사기 유형(보이스피싱 구조화 연쇄성 등)에 해당하는지 판별하고 관제 요원이 즉각 조치할 수 있도록 핵심만 2문장 내외의 명확한 한국어 보고서로 작성해줘. 단, 절대 마크다운 기호(** 등)나 작은따옴표(''), 큰따옴표(\\\"\\\")를 사용하지 말고 순수한 텍스트로만 출력해.",
-            evidenceSummary
+            "너는 은행의 전문 FDS 관제 요원이야. 전달받은 [데이터]를 바탕으로, 반드시 아래의 [출력 템플릿] 양식과 토씨 하나 틀리지 않게 똑같은 구조로 보고서를 작성해. 절대 마크다운 기호(** 등)나 따옴표를 쓰지 마.\n\n" +
+            "[데이터]\n" +
+            "- 신뢰도: %d%%\n" +
+            "- 송금인 계좌: %s\n" +
+            "- 수취인 계좌: %s\n" +
+            "- 거래 금액: %s\n" +
+            "- AI 탐지 근거: %s\n\n" +
+            "[출력 템플릿]\n" +
+            "본 거래는 AI 모델에 의해 [신뢰도]%%의 신뢰도로 의심거래로 분류되었습니다.\n\n" +
+            "[분석 근거]\n" +
+            "1. 거래 이력 분석: 송금인 계좌([송금인])와 수취인 계좌([수취인]) 간의 관계 요약 (근거 바탕)\n" +
+            "2. 금액 이상치 분석: ₩[금액]이 왜 비정상적인지 요약 (근거 바탕)\n" +
+            "3. [추가 탐지 근거가 있다면 번호를 매겨서 요약 작성]\n\n" +
+            "[위험 평가]\n" +
+            "- 예상 사기 유형: [보이스피싱/자금세탁/블랙리스트 중 택 1]\n" +
+            "- 예상 피해 금액: ₩[금액]\n" +
+            "- 긴급도: 즉시 조치 필요",
+            probPercent, sender, receiver, amount, evidenceSummary
         );
 
         try {
@@ -67,18 +82,17 @@ public class ReportService {
 
             ResponseEntity<String> response = restTemplate.postForEntity(qwenApiUrl, entity, String.class);
             
-            // 💡 여기서부터 추가/수정된 부분입니다! (골판지 상자 까기)
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(response.getBody());
-            
-            // JSON 트리에서 choices -> 0번째 -> message -> content 경로를 찾아가서 텍스트만 쏙 빼옴
             String extractedReport = rootNode.path("choices").get(0).path("message").path("content").asText();
             
-            return extractedReport; // 깔끔한 알맹이만 리턴!
+            String cleanReport = extractedReport.replace("**", "").replace("'", "").replace("\"", "");
+            
+            return cleanReport;
 
         } catch (Exception e) {
             System.out.println("Qwen API 연동 에러: " + e.getMessage());
-            return "[AI 자동 생성 보고서] 심각한 이상 징후가 발견되었습니다 주요 사유: " + aiResponse.getEvidenceMaterials().get(0).getDesc();
+            return "본 거래는 AI 모델에 의해 의심거래로 분류되었습니다.\n\n[분석 근거]\n1. " + aiResponse.getEvidenceMaterials().get(0).getDesc() + "\n\n[위험 평가]\n- 긴급도: 즉시 조치 필요";
         }
     }
 }

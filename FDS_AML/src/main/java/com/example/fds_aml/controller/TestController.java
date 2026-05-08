@@ -35,6 +35,5 @@ public class TestController {
         String finalReport = reportService.generateQwenReport(fakeResponse);
         
         // 3. 화면에 예쁘게 출력되도록 포맷팅해서 리턴
-        return "<h3>🤖 Qwen AI 관제 보고서 테스트 결과</h3><hr><p>" + finalReport + "</p>";
-    }
+        return "<h3>🤖 Qwen AI 관제 보고서 테스트 결과</h3><hr><pre style='font-family: sans-serif; white-space: pre-wrap; word-wrap: break-word; font-size: 15px;'>" + finalReport + "</pre>";    }
 }
