@@ -10,7 +10,7 @@ API_URL = "http://localhost:8080/transactions"
 
 def run_generator():
     for file_name in FILES:
-        print(f"관제 시뮬레이션 시작 {file_name} 찐 실시간 데이터 전송 중...")
+        print(f"관제 시뮬레이션 시작 {file_name} 실시간 데이터 전송 중...")
         try:
             df = pd.read_csv(file_name) 
         except FileNotFoundError:
