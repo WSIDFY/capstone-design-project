@@ -30,7 +30,8 @@ def run_generator():
                 "receiver": row['nameDest'],
                 "oldbalanceDest": float(row['oldbalanceDest']),
                 "newbalanceDest": float(row['newbalanceDest']),
-                "transactionDate": current_real_time.strftime('%Y-%m-%d %H:%M:%S') 
+                "transactionDate": current_real_time.strftime('%Y-%m-%d %H:%M:%S'),
+                "is_blacklist": int(row.get('is_blacklist', 0))
             }
 
             try:
