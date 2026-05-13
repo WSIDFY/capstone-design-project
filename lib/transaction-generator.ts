@@ -1,4 +1,4 @@
-import type { Transaction, TransactionHistory, SuspiciousReason, RiskLevel } from "./transaction-types"
+import type { Transaction, TransactionHistory, SuspiciousReason, RiskLevel, CsvTransaction, BackendTransaction } from "./transaction-types"
 import { FRAUD_ACCOUNTS } from "./transaction-types"
 
 // 이름 데이터
@@ -102,7 +102,8 @@ function generateNormalTransaction(histories: Map<string, TransactionHistory>): 
     riskLevel: "normal",
     suspiciousReason: "none",
     aiConfidence: randomInt(85, 99),
-    operatorAssigned: false
+    operatorAssigned: false,
+    is_blacklist: 0
   }
 }
 
@@ -171,7 +172,9 @@ function generateSuspiciousTransaction(histories: Map<string, TransactionHistory
     riskLevel,
     suspiciousReason: reason,
     aiConfidence,
-    operatorAssigned: false
+    operatorAssigned: false,
+    // 사기계좌(fraud_account)이면 is_blacklist=1, 나머지 의심거래는 0
+    is_blacklist: reason === "fraud_account" ? 1 : 0
   }
 }
 
@@ -231,6 +234,80 @@ export function formatAmount(amount: number): string {
   }).format(amount)
 }
 
+/**
+ * split_3.csv 에서 읽어온 CsvTransaction[] 배열을 최대 100,000건 제한 후
+ * 프론트에서 사용하는 Transaction[] 형태로 변환합니다.
+ *
+ * - is_blacklist === 1 이면 riskLevel을 "warning", suspiciousReason을 "fraud_account"로 강제 설정
+ * - is_blacklist === 0 이면 CSV의 suspicious_reason 값으로 riskLevel을 도출
+ *
+ * 백엔드 API 연동 예시:
+ *   const raw: CsvTransaction[] = await fetch("/api/transactions").then(r => r.json())
+ *   const transactions = parseCSVTransactions(raw)
+ */
+export function parseCSVTransactions(
+  rows: CsvTransaction[],
+  limit = 100_000
+): Transaction[] {
+  return rows.slice(0, limit).map((row) => {
+    const isBlacklisted = row.is_blacklist === 1
+
+    const suspiciousReason: SuspiciousReason = isBlacklisted
+      ? "fraud_account"
+      : (row.suspicious_reason ?? "none")
+
+    const riskLevel: RiskLevel = deriveRiskLevel(suspiciousReason, isBlacklisted)
+
+    return {
+      id: row.id,
+      senderName: row.sender_name,
+      senderType: row.sender_type,
+      senderAccount: row.sender_account,
+      recipientName: row.recipient_name,
+      recipientAccount: row.recipient_account,
+      amount: Number(row.amount),
+      date: new Date(row.date),
+      category: row.category,
+      location: row.location,
+      riskLevel,
+      suspiciousReason,
+      aiConfidence: Number(row.ai_confidence),
+      operatorAssigned: false,
+      is_blacklist: row.is_blacklist,
+    }
+  })
+}
+
+/** suspicious_reason 과 is_blacklist 값으로 위험도를 도출 */
+function deriveRiskLevel(reason: SuspiciousReason, isBlacklisted: boolean): RiskLevel {
+  if (isBlacklisted || reason === "fraud_account" || reason === "money_laundering") {
+    return "warning"
+  }
+  if (reason === "first_large_transfer" || reason === "unusual_location" || reason === "rapid_transactions") {
+    return "caution"
+  }
+  return "normal"
+}
+
+/**
+ * is_blacklist === 1 인 거래만 추려 BlacklistEntry 배열로 변환합니다.
+ * dashboard-client.tsx 의 초기 블랙리스트 상태 세팅에 사용합니다.
+ */
+export function extractBlacklistFromTransactions(
+  transactions: Transaction[]
+) {
+  return transactions
+    .filter((tx) => tx.is_blacklist === 1)
+    .map((tx) => ({
+      id: `bl-csv-${tx.id}`,
+      name: tx.recipientName,
+      accountNumber: tx.recipientAccount,
+      reason: tx.suspiciousReason,
+      addedAt: tx.date,
+      relatedTransactionId: tx.id,
+    }))
+}
+
 // 날짜 포맷팅
 export function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -240,4 +317,90 @@ export function formatDate(date: Date): string {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date)
+}
+
+/**
+ * 백엔드 API에서 받은 BackendTransaction[] 배열을 프론트에서 사용하는 Transaction[] 형태로 변환합니다.
+ *
+ * 변환 규칙:
+ * - riskLevel: "정상" → "normal", "위험" → "warning" (caution은 백엔드에서 안 옴)
+ * - sender/receiver → senderName, senderAccount / recipientName, recipientAccount (동일값)
+ * - aiReport: null이면 정상, 있으면 의심거래
+ * - aiConfidence: aiReport에서 % 숫자 추출
+ * - suspiciousReason: aiReport 내용으로 판단
+ *
+ * 백엔드 API 호출 예시:
+ *   const response = await fetch("http://localhost:8080/transactions")
+ *   const backendData: BackendTransaction[] = await response.json()
+ *   const transactions = transformBackendTransactions(backendData)
+ */
+export function transformBackendTransactions(
+  rows: BackendTransaction[],
+  limit = 100_000
+): Transaction[] {
+  return rows.slice(0, limit).map((row) => {
+    // riskLevel 변환: "정상" → "normal", "위험" → "warning"
+    const riskLevel: RiskLevel = row.riskLevel === "정상" ? "normal" : "warning"
+
+    // aiConfidence 추출: aiReport에서 숫자(%) 추출
+    const aiConfidence = row.aiReport
+      ? extractConfidenceFromReport(row.aiReport)
+      : 95
+
+    // suspiciousReason 추출: aiReport 내용으로 판단
+    const suspiciousReason: SuspiciousReason = row.aiReport
+      ? inferReasonFromReport(row.aiReport)
+      : "none"
+
+    // is_blacklist은 백엔드에서 제공하지 않으므로 0으로 설정 (추후 별도 엔드포인트에서 처리)
+    return {
+      id: String(row.id),
+      senderName: row.sender, // 동일값 사용
+      senderType: "individual", // 백엔드에서 구분 제공 안 함
+      senderAccount: row.sender,
+      recipientName: row.receiver, // 동일값 사용
+      recipientAccount: row.receiver,
+      amount: row.amount,
+      date: new Date(row.transactionDate), // "yyyy-MM-dd HH:mm:ss" 파싱
+      category: row.type === "TRANSFER" ? "송금" : "현금인출",
+      location: undefined, // 백엔드에서 제공 안 함
+      riskLevel,
+      suspiciousReason,
+      aiConfidence,
+      operatorAssigned: false,
+      is_blacklist: 0,
+      aiReport: row.aiReport // 백엔드 AI 보고서 텍스트 추가
+    }
+  })
+}
+
+/**
+ * aiReport 텍스트에서 신뢰도 % 추출
+ * 예: "92%의 신뢰도로" → 92
+ */
+function extractConfidenceFromReport(report: string): number {
+  const match = report.match(/(\d{1,3})%/)
+  return match ? parseInt(match[1], 10) : 50
+}
+
+/**
+ * aiReport 텍스트 내용으로 의심 사유 추론
+ */
+function inferReasonFromReport(report: string): SuspiciousReason {
+  if (report.includes("사기") || report.includes("금융사기")) {
+    return "fraud_account"
+  }
+  if (report.includes("자금세탁") || report.includes("세탁")) {
+    return "money_laundering"
+  }
+  if (report.includes("보이스피싱") || report.includes("고액 이체")) {
+    return "first_large_transfer"
+  }
+  if (report.includes("카드 도난") || report.includes("비정상 위치")) {
+    return "unusual_location"
+  }
+  if (report.includes("연속")) {
+    return "rapid_transactions"
+  }
+  return "none"
 }

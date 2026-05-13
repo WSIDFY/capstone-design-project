@@ -9,8 +9,8 @@ import { TransactionTable } from "@/components/dashboard/transaction-table"
 import { FilterBar } from "@/components/dashboard/filter-bar"
 import { ReportPanel } from "@/components/dashboard/report-panel"
 import { BlacklistPanel } from "@/components/dashboard/blacklist-panel"
-import { generateTransactions, calculateStats } from "@/lib/transaction-generator"
-import type { Transaction, RiskLevel, BlacklistEntry } from "@/lib/transaction-types"
+import { generateTransactions, calculateStats, extractBlacklistFromTransactions, transformBackendTransactions } from "@/lib/transaction-generator"
+import type { Transaction, RiskLevel, BlacklistEntry, BackendTransaction } from "@/lib/transaction-types"
 import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle, AlertCircle, CheckCircle } from "lucide-react"
 
@@ -43,32 +43,47 @@ export default function DashboardClient() {
     loadTransactions()
   }, [])
 
-  const loadTransactions = () => {
+  const loadTransactions = async () => {
     setIsLoading(true)
-    setTimeout(() => {
-      const newTransactions = generateTransactions(100, 0.15)
+    try {
+      // 백엔드 API에서 거래 내역 가져오기
+      // 개발 중: mock 데이터 사용, 배포 시: 실제 API 호출
+      const useBackendApi = false // 백엔드 준비 완료 시 true로 변경
+
+      let newTransactions: Transaction[]
+
+      if (useBackendApi) {
+        try {
+          const response = await fetch("http://localhost:8080/transactions")
+          if (!response.ok) throw new Error(`API 오류: ${response.status}`)
+          
+          const backendData: BackendTransaction[] = await response.json()
+          newTransactions = transformBackendTransactions(backendData)
+        } catch (error) {
+          console.error("[FDS] 백엔드 API 호출 실패, mock 데이터로 폴백:", error)
+          // 백엔드 실패 시 mock 데이터로 대체
+          newTransactions = generateTransactions(100, 0.15)
+        }
+      } else {
+        // 개발 중: mock 데이터 사용
+        newTransactions = generateTransactions(100, 0.15)
+      }
+
       setTransactions(newTransactions)
-      
-      // 사기계좌로 분류된 거래의 수취인을 자동으로 블랙리스트에 추가
-      const fraudTransactions = newTransactions.filter(tx => tx.suspiciousReason === "fraud_account")
-      const newBlacklistEntries: BlacklistEntry[] = fraudTransactions.map(tx => ({
-        id: `bl-${tx.id}`,
-        name: tx.recipientName,
-        accountNumber: tx.recipientAccount,
-        reason: tx.suspiciousReason,
-        addedAt: new Date(),
-        relatedTransactionId: tx.id
-      }))
-      
-      // 중복 제거 (같은 계좌번호)
+
+      // is_blacklist === 1 인 거래를 자동으로 블랙리스트에 추가
+      const csvBlacklist = extractBlacklistFromTransactions(newTransactions)
+
       setBlacklist(prev => {
         const existingAccounts = new Set(prev.map(e => e.accountNumber))
-        const uniqueNew = newBlacklistEntries.filter(e => !existingAccounts.has(e.accountNumber))
+        const uniqueNew = csvBlacklist.filter(e => !existingAccounts.has(e.accountNumber))
         return [...prev, ...uniqueNew]
       })
-      
+    } catch (error) {
+      console.error("[FDS] 거래 내역 로드 실패:", error)
+    } finally {
       setIsLoading(false)
-    }, 500)
+    }
   }
 
   const stats = useMemo(() => calculateStats(transactions), [transactions])

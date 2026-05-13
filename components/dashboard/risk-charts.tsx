@@ -140,9 +140,9 @@ export function RiskCharts({ stats }: RiskChartsProps) {
                     fontSize: "12px",
                     marginBottom: "4px"
                   }}
-                  formatter={(value: number, _name: string, props: any) => [
-                    <span key="value" style={{ color: props.payload?.color, fontWeight: 600 }}>{value}건</span>,
-                    props.payload?.name
+                  formatter={(value: number, _name: string, props?: { payload?: { name: string; color: string } }) => [
+                    <span key="value" style={{ color: props?.payload?.color ?? "#ffffff", fontWeight: 600 }}>{value}건</span>,
+                    props?.payload?.name ?? ""
                   ]}
                 />
               </PieChart>
@@ -207,8 +207,8 @@ export function RiskCharts({ stats }: RiskChartsProps) {
                     marginBottom: "4px"
                   }}
                   cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
-                  formatter={(value: number, _name: string, props: any) => [
-                    <span key="value" style={{ color: props.payload?.fill, fontWeight: 600 }}>{value}건</span>,
+                  formatter={(value: number, _name: string, props?: { payload?: { name: string; fill: string } }) => [
+                    <span key="value" style={{ color: props?.payload?.fill ?? "#ffffff", fontWeight: 600 }}>{value}건</span>,
                     "탐지 건수"
                   ]}
                 />

@@ -142,6 +142,20 @@ export function ReportPanel({ transaction, onClose, onUpdateRisk, onAddToBlackli
           </div>
         )}
 
+        {/* 백엔드 AI 보고서 */}
+        {transaction.aiReport && (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2">백엔드 AI 분석 보고서</h3>
+            <div className="p-3 bg-secondary/50 rounded-lg">
+              <div className="text-sm text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">
+                {transaction.aiReport.split('\n').map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 상세 분석 */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-2">상세 분석 내용</h3>
