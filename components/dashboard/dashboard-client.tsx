@@ -43,35 +43,51 @@ export default function DashboardClient() {
     loadTransactions()
   }, [])
 
+  // ============================================
+  // [DB 조회] 거래 내역 로드 함수
+  // ============================================
   const loadTransactions = async () => {
     setIsLoading(true)
     try {
-      // 백엔드 API에서 거래 내역 가져오기
-      // 개발 중: mock 데이터 사용, 배포 시: 실제 API 호출
+      // ============================================
+      // [DB 조회 설정] useBackendApi = true 시 실제 백엔드 API 호출
+      // ============================================
       const useBackendApi = false // 백엔드 준비 완료 시 true로 변경
 
       let newTransactions: Transaction[]
 
       if (useBackendApi) {
         try {
+          // ============================================
+          // [DB 조회] 백엔드 API 호출
+          // 엔드포인트: http://localhost:8080/transactions
+          // 응답 형식: BackendTransaction[]
+          // ============================================
           const response = await fetch("http://localhost:8080/transactions")
           if (!response.ok) throw new Error(`API 오류: ${response.status}`)
           
           const backendData: BackendTransaction[] = await response.json()
           newTransactions = transformBackendTransactions(backendData)
+          // ============================================
         } catch (error) {
-          console.error("[FDS] 백엔드 API 호출 실패, mock 데이터로 폴백:", error)
-          // 백엔드 실패 시 mock 데이터로 대체
-          newTransactions = generateTransactions(100, 0.15)
+          console.error("[FDS] 백엔드 API 호출 실패:", error)
+          // 백엔드 실패 시 빈 배열 반환
+          newTransactions = []
         }
       } else {
-        // 개발 중: mock 데이터 사용
+        // ============================================
+        // [더미데이터] 백엔드 연동 전 테스트용 - 연동 후 삭제
+        // ============================================
         newTransactions = generateTransactions(100, 0.15)
+        // ============================================
       }
 
       setTransactions(newTransactions)
 
-      // is_blacklist === 1 인 거래를 자동으로 블랙리스트에 추가
+      // ============================================
+      // [DB 조회 후 처리] is_blacklist 값에 따라 블랙리스트 자동 추가
+      // is_blacklist: 0=없음, 1=송신자만, 2=수신자만, 3=둘다
+      // ============================================
       const csvBlacklist = extractBlacklistFromTransactions(newTransactions)
 
       setBlacklist(prev => {
@@ -79,12 +95,14 @@ export default function DashboardClient() {
         const uniqueNew = csvBlacklist.filter(e => !existingAccounts.has(e.accountNumber))
         return [...prev, ...uniqueNew]
       })
+      // ============================================
     } catch (error) {
       console.error("[FDS] 거래 내역 로드 실패:", error)
     } finally {
       setIsLoading(false)
     }
   }
+  // ============================================
 
   const stats = useMemo(() => calculateStats(transactions), [transactions])
 

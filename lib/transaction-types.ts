@@ -27,8 +27,14 @@ export interface Transaction {
   // 운영자 할당 여부
   operatorAssigned: boolean
   operatorNote?: string
-  // CSV 원본 블랙리스트 여부 (0: 정상, 1: 블랙리스트)
-  is_blacklist: 0 | 1
+  /**
+   * 블랙리스트 여부 (CSV 원본값)
+   * 0: 블랙리스트 없음
+   * 1: 송신자만 블랙리스트
+   * 2: 수신자만 블랙리스트
+   * 3: 송신자 + 수신자 둘 다 블랙리스트
+   */
+  is_blacklist: 0 | 1 | 2 | 3
   // 백엔드 AI 보고서 (aiReport가 있으면 의심거래)
   aiReport?: string | null
 }
@@ -62,8 +68,14 @@ export interface CsvTransaction {
   suspicious_reason: SuspiciousReason
   /** AI 신뢰도 0-100 */
   ai_confidence: number
-  /** 블랙리스트 여부 (0: 정상, 1: 블랙리스트) */
-  is_blacklist: 0 | 1
+  /**
+   * 블랙리스트 여부
+   * 0: 블랙리스트 없음
+   * 1: 송신자만 블랙리스트
+   * 2: 수신자만 블랙리스트
+   * 3: 송신자 + 수신자 둘 다 블랙리스트
+   */
+  is_blacklist: 0 | 1 | 2 | 3
 }
 
 export interface TransactionHistory {
@@ -99,7 +111,9 @@ export interface BlacklistEntry {
 
 /**
  * 백엔드 API 응답 형식 (split_3.csv 기반)
- * http://localhost:8080/transactions 에서 이 형태로 데이터 수신
+ * ============================================
+ * [DB 조회] http://localhost:8080/transactions 에서 이 형태로 데이터 수신
+ * ============================================
  */
 export interface BackendTransaction {
   id: number
@@ -115,6 +129,14 @@ export interface BackendTransaction {
   transactionDate: string // "yyyy-MM-dd HH:mm:ss"
   riskLevel: "정상" | "위험"
   aiReport: string | null // AI 보고서 텍스트. 정상거래는 null
+  /**
+   * 블랙리스트 여부
+   * 0: 블랙리스트 없음
+   * 1: 송신자만 블랙리스트
+   * 2: 수신자만 블랙리스트
+   * 3: 송신자 + 수신자 둘 다 블랙리스트
+   */
+  is_blacklist?: 0 | 1 | 2 | 3
 }
 
 // 통계 타입

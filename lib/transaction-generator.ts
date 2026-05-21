@@ -1,30 +1,14 @@
 import type { Transaction, TransactionHistory, SuspiciousReason, RiskLevel, CsvTransaction, BackendTransaction } from "./transaction-types"
 import { FRAUD_ACCOUNTS } from "./transaction-types"
 
-// 이름 데이터
-const INDIVIDUAL_NAMES = [
-  "김민준", "이서연", "박지호", "최예린", "정현우",
-  "강수빈", "조민서", "윤하은", "장도윤", "임서영",
-  "한지민", "신유진", "권태현", "송지우", "오예준",
-  "서민아", "황지훈", "안수현", "전소연", "류승민"
-]
-
-const INSTITUTION_NAMES = [
-  "삼성전자", "현대자동차", "SK텔레콤", "LG전자", "카카오",
-  "네이버", "쿠팡", "배달의민족", "토스", "신한은행",
-  "국민은행", "하나은행", "우리은행", "농협", "GS리테일"
-]
-
-const CATEGORIES = [
-  "온라인쇼핑", "식비", "교통", "통신", "의료",
-  "교육", "여가", "보험", "공과금", "송금", "급여", "투자"
-]
-
-const LOCATIONS = [
-  "서울 강남구", "서울 서초구", "서울 종로구", "서울 마포구",
-  "경기 성남시", "경기 수원시", "부산 해운대구", "대구 중구",
-  "인천 연수구", "광주 서구", "대전 유성구", "울산 남구"
-]
+// ============================================
+// [더미데이터] 백엔드 연동 전 테스트용 - 연동 후 삭제 예정
+// ============================================
+const INDIVIDUAL_NAMES: string[] = []
+const INSTITUTION_NAMES: string[] = []
+const CATEGORIES: string[] = []
+const LOCATIONS: string[] = []
+// ============================================
 
 // 유틸리티 함수
 function randomChoice<T>(arr: T[]): T {
@@ -43,140 +27,65 @@ function generateId(): string {
   return `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-// 거래 내역 생성기
+// ============================================
+// [더미데이터 생성기] 백엔드 연동 전 테스트용 - 연동 후 삭제 예정
+// ============================================
 export function generateTransactions(count: number, suspiciousRatio: number = 0.15): Transaction[] {
-  const transactions: Transaction[] = []
-  const accountHistories: Map<string, TransactionHistory> = new Map()
-  
-  const suspiciousCount = Math.floor(count * suspiciousRatio)
-  const normalCount = count - suspiciousCount
-  
-  // 정상 거래 생성
-  for (let i = 0; i < normalCount; i++) {
-    const tx = generateNormalTransaction(accountHistories)
-    transactions.push(tx)
-  }
-  
-  // 의심 거래 생성
-  for (let i = 0; i < suspiciousCount; i++) {
-    const tx = generateSuspiciousTransaction(accountHistories)
-    transactions.push(tx)
-  }
-  
-  // 날짜순 정렬 (최신순)
-  transactions.sort((a, b) => b.date.getTime() - a.date.getTime())
-  
-  return transactions
+  // 백엔드 연동 후에는 빈 배열 반환 (실제 데이터는 API에서 가져옴)
+  console.warn("[FDS] generateTransactions: 더미데이터 생성기 호출됨 - 백엔드 연동 후 제거 필요")
+  return []
 }
+// ============================================
 
+// ============================================
+// [더미데이터] generateNormalTransaction - 백엔드 연동 후 삭제 예정
+// ============================================
 function generateNormalTransaction(histories: Map<string, TransactionHistory>): Transaction {
-  const isInstitution = Math.random() > 0.7
-  const senderAccount = generateAccountNumber()
-  
-  // 기존 거래 내역 확인 또는 새로 생성
-  let history = histories.get(senderAccount)
-  if (!history) {
-    history = {
-      accountId: senderAccount,
-      previousTransactions: [],
-      averageAmount: randomInt(10000, 500000),
-      usualLocations: [randomChoice(LOCATIONS), randomChoice(LOCATIONS)]
-    }
-    histories.set(senderAccount, history)
-  }
-  
-  const amount = Math.round(history.averageAmount * (0.5 + Math.random()))
-  const location = randomChoice(history.usualLocations)
-  
+  // 빈 거래 객체 반환 (더미데이터 제거됨)
   return {
-    id: generateId(),
-    senderName: isInstitution ? randomChoice(INSTITUTION_NAMES) : randomChoice(INDIVIDUAL_NAMES),
-    senderType: isInstitution ? "institution" : "individual",
-    senderAccount,
-    recipientName: randomChoice(INDIVIDUAL_NAMES),
-    recipientAccount: generateAccountNumber(),
-    amount,
-    date: new Date(Date.now() - randomInt(0, 7 * 24 * 60 * 60 * 1000)),
-    category: randomChoice(CATEGORIES),
-    location,
+    id: "",
+    senderName: "",
+    senderType: "individual",
+    senderAccount: "",
+    recipientName: "",
+    recipientAccount: "",
+    amount: 0,
+    date: new Date(),
+    category: "",
+    location: "",
     riskLevel: "normal",
     suspiciousReason: "none",
-    aiConfidence: randomInt(85, 99),
+    aiConfidence: 0,
     operatorAssigned: false,
     is_blacklist: 0
   }
 }
+// ============================================
 
+// ============================================
+// [더미데이터] generateSuspiciousTransaction - 백엔드 연동 후 삭제 예정
+// ============================================
 function generateSuspiciousTransaction(histories: Map<string, TransactionHistory>): Transaction {
-  const suspiciousType = randomInt(1, 4)
-  let reason: SuspiciousReason
-  let riskLevel: RiskLevel
-  let amount: number
-  let recipientAccount: string
-  let location: string | undefined
-  let aiConfidence: number
-  
-  const senderAccount = generateAccountNumber()
-  
-  switch (suspiciousType) {
-    case 1: // 첫 거래 고액 이체 (보이스피싱 의심)
-      reason = "first_large_transfer"
-      riskLevel = Math.random() > 0.5 ? "warning" : "caution"
-      amount = randomInt(5000000, 50000000) // 500만원 ~ 5000만원
-      recipientAccount = generateAccountNumber()
-      location = randomChoice(LOCATIONS)
-      aiConfidence = randomInt(70, 95)
-      break
-      
-    case 2: // 비정상 위치 연속 결제 (카드 도난 의심)
-      reason = "unusual_location"
-      riskLevel = "caution"
-      amount = randomInt(100000, 2000000)
-      recipientAccount = generateAccountNumber()
-      // 평소와 다른 위치
-      location = Math.random() > 0.5 ? "해외 베트남 호치민" : "해외 중국 상하이"
-      aiConfidence = randomInt(65, 90)
-      break
-      
-    case 3: // 신고된 사기계좌로 송금
-      reason = "fraud_account"
-      riskLevel = "warning"
-      amount = randomInt(1000000, 30000000)
-      recipientAccount = randomChoice(FRAUD_ACCOUNTS)
-      location = randomChoice(LOCATIONS)
-      aiConfidence = randomInt(90, 99)
-      break
-      
-    case 4: // 자금세탁 의심
-    default:
-      reason = "money_laundering"
-      riskLevel = "warning"
-      amount = randomInt(10000000, 100000000) // 1000만원 ~ 1억원
-      recipientAccount = generateAccountNumber()
-      location = randomChoice(LOCATIONS)
-      aiConfidence = randomInt(60, 85)
-      break
-  }
-  
+  // 빈 거래 객체 반환 (더미데이터 제거됨)
   return {
-    id: generateId(),
-    senderName: randomChoice(INDIVIDUAL_NAMES),
+    id: "",
+    senderName: "",
     senderType: "individual",
-    senderAccount,
-    recipientName: randomChoice(INDIVIDUAL_NAMES),
-    recipientAccount,
-    amount,
-    date: new Date(Date.now() - randomInt(0, 3 * 24 * 60 * 60 * 1000)), // 최근 3일 내
-    category: reason === "fraud_account" ? "송금" : randomChoice(CATEGORIES),
-    location,
-    riskLevel,
-    suspiciousReason: reason,
-    aiConfidence,
+    senderAccount: "",
+    recipientName: "",
+    recipientAccount: "",
+    amount: 0,
+    date: new Date(),
+    category: "",
+    location: "",
+    riskLevel: "warning",
+    suspiciousReason: "fraud_account",
+    aiConfidence: 0,
     operatorAssigned: false,
-    // 사기계좌(fraud_account)이면 is_blacklist=1, 나머지 의심거래는 0
-    is_blacklist: reason === "fraud_account" ? 1 : 0
+    is_blacklist: 0
   }
 }
+// ============================================
 
 // 대시보드 통계 계산
 export function calculateStats(transactions: Transaction[]) {
@@ -290,23 +199,58 @@ function deriveRiskLevel(reason: SuspiciousReason, isBlacklisted: boolean): Risk
 }
 
 /**
- * is_blacklist === 1 인 거래만 추려 BlacklistEntry 배열로 변환합니다.
- * dashboard-client.tsx 의 초기 블랙리스트 상태 세팅에 사용합니다.
+ * ============================================
+ * [DB 조회 후 블랙리스트 추출]
+ * ============================================
+ * is_blacklist 값에 따라 블랙리스트 대상을 구분하여 추출합니다.
+ * 
+ * is_blacklist 값:
+ * - 0: 블랙리스트 없음 (추출 안 함)
+ * - 1: 송신자만 블랙리스트 → senderName, senderAccount 추출
+ * - 2: 수신자만 블랙리스트 → recipientName, recipientAccount 추출
+ * - 3: 둘 다 블랙리스트 → 송신자, 수신자 모두 추출 (2개 항목)
  */
 export function extractBlacklistFromTransactions(
   transactions: Transaction[]
 ) {
-  return transactions
-    .filter((tx) => tx.is_blacklist === 1)
-    .map((tx) => ({
-      id: `bl-csv-${tx.id}`,
-      name: tx.recipientName,
-      accountNumber: tx.recipientAccount,
-      reason: tx.suspiciousReason,
-      addedAt: tx.date,
-      relatedTransactionId: tx.id,
-    }))
+  const blacklistEntries: {
+    id: string
+    name: string
+    accountNumber: string
+    reason: SuspiciousReason
+    addedAt: Date
+    relatedTransactionId: string
+  }[] = []
+
+  transactions.forEach((tx) => {
+    // is_blacklist === 1 또는 3: 송신자 블랙리스트
+    if (tx.is_blacklist === 1 || tx.is_blacklist === 3) {
+      blacklistEntries.push({
+        id: `bl-sender-${tx.id}`,
+        name: tx.senderName,
+        accountNumber: tx.senderAccount,
+        reason: tx.suspiciousReason,
+        addedAt: tx.date,
+        relatedTransactionId: tx.id,
+      })
+    }
+
+    // is_blacklist === 2 또는 3: 수신자 블랙리스트
+    if (tx.is_blacklist === 2 || tx.is_blacklist === 3) {
+      blacklistEntries.push({
+        id: `bl-receiver-${tx.id}`,
+        name: tx.recipientName,
+        accountNumber: tx.recipientAccount,
+        reason: tx.suspiciousReason,
+        addedAt: tx.date,
+        relatedTransactionId: tx.id,
+      })
+    }
+  })
+
+  return blacklistEntries
 }
+// ============================================
 
 // 날짜 포맷팅
 export function formatDate(date: Date): string {
@@ -320,6 +264,9 @@ export function formatDate(date: Date): string {
 }
 
 /**
+ * ============================================
+ * [DB 조회] 백엔드 API 응답 → 프론트 Transaction 변환
+ * ============================================
  * 백엔드 API에서 받은 BackendTransaction[] 배열을 프론트에서 사용하는 Transaction[] 형태로 변환합니다.
  *
  * 변환 규칙:
@@ -328,6 +275,7 @@ export function formatDate(date: Date): string {
  * - aiReport: null이면 정상, 있으면 의심거래
  * - aiConfidence: aiReport에서 % 숫자 추출
  * - suspiciousReason: aiReport 내용으로 판단
+ * - is_blacklist: 백엔드에서 제공 (0=없음, 1=송신자만, 2=수신자만, 3=둘다)
  *
  * 백엔드 API 호출 예시:
  *   const response = await fetch("http://localhost:8080/transactions")
@@ -352,7 +300,9 @@ export function transformBackendTransactions(
       ? inferReasonFromReport(row.aiReport)
       : "none"
 
-    // is_blacklist은 백엔드에서 제공하지 않으므로 0으로 설정 (추후 별도 엔드포인트에서 처리)
+    // is_blacklist: 백엔드에서 제공하면 사용, 없으면 0 (기본값)
+    const isBlacklist = row.is_blacklist ?? 0
+
     return {
       id: String(row.id),
       senderName: row.sender, // 동일값 사용
@@ -368,11 +318,12 @@ export function transformBackendTransactions(
       suspiciousReason,
       aiConfidence,
       operatorAssigned: false,
-      is_blacklist: 0,
+      is_blacklist: isBlacklist,
       aiReport: row.aiReport // 백엔드 AI 보고서 텍스트 추가
     }
   })
 }
+// ============================================
 
 /**
  * aiReport 텍스트에서 신뢰도 % 추출
