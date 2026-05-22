@@ -1,0 +1,9 @@
+pandas
+numpy
+scikit-learn
+xgboost
+shap
+fastapi
+uvicorn
+python-dotenv
+dashscope
