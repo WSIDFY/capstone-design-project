@@ -7,6 +7,7 @@ import com.example.fds_aml.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import java.util.List;
 
 @Service
@@ -16,6 +17,9 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final ReportService reportService;
     private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${ai.server.url}")
+    private String aiServerUrl;
 
     public Transaction processTransaction(TransactionRequestDto dto) {
         Transaction transaction = new Transaction();
@@ -29,11 +33,11 @@ public class TransactionService {
         transaction.setOldbalanceDest(dto.getOldbalanceDest());
         transaction.setNewbalanceDest(dto.getNewbalanceDest());
         transaction.setTransactionDate(dto.getTransactionDate());
+        transaction.setIsBlacklist(dto.getIsBlacklist());
 
         Transaction savedTransaction = transactionRepository.save(transaction);
 
         try {
-            String aiServerUrl = "http://localhost:5000/predict";
             AiAnalysisResponseDto aiResponse = restTemplate.postForObject(aiServerUrl, dto, AiAnalysisResponseDto.class);
 
             if (aiResponse != null && aiResponse.isSuspicious()) {

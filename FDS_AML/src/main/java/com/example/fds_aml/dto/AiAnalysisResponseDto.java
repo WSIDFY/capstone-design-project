@@ -13,16 +13,16 @@ public class AiAnalysisResponseDto {
     @JsonProperty("is_suspicious")
     private boolean isSuspicious;
 
-    @JsonProperty("fraud_probability")
+    @JsonProperty("risk_score")
     private double fraudProbability;
 
     @JsonProperty("is_blacklist")
     private boolean isBlacklist;
 
-    @JsonProperty("evidence_materials")
+    @JsonProperty("evidence")
     private List<EvidenceMaterial> evidenceMaterials;
 
-    @JsonProperty("raw_data")
+    @JsonProperty("info")
     private Map<String, Object> rawData;
 
     @Getter
@@ -30,10 +30,10 @@ public class AiAnalysisResponseDto {
     public static class EvidenceMaterial {
         private String column;
         private double contribution;
-        
+
         @JsonProperty("actual_value")
-        private Object actualValue; // 숫자일 수도, 문자일 수도 있어서 Object로 받음
-        
+        private Object actualValue;
+
         private String desc;
     }
 }

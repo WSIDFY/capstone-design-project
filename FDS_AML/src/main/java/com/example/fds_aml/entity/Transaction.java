@@ -20,17 +20,33 @@ public class Transaction {
     private Integer step;
     private String type;
     private Integer amount;
+
     private String sender;
-    private Double oldbalanceOrg;
-    private Double newbalanceOrig;
     private String receiver;
+
+    @Column(name = "oldbalance_org")
+    private Double oldbalanceOrg;
+
+    @Column(name = "newbalance_orig")
+    private Double newbalanceOrig;
+
+    @Column(name = "oldbalance_dest")
     private Double oldbalanceDest;
+
+    @Column(name = "newbalance_dest")
     private Double newbalanceDest;
+
     private String location;
-    private Integer is_blacklist_dest;
+
+    @Column(name = "is_blacklist")
+    private Integer isBlacklist;
+
+    @Column(name = "risk_level")
     private String riskLevel;
+
+    @Column(name = "transaction_date")
     private LocalDateTime transactionDate;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "ai_report", columnDefinition = "TEXT")
     private String aiReport;
 }
