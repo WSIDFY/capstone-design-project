@@ -13,16 +13,16 @@ public class AiAnalysisResponseDto {
     @JsonProperty("is_suspicious")
     private boolean isSuspicious;
 
-    @JsonProperty("risk_score")
+    @JsonProperty("fraud_probability")
     private double fraudProbability;
 
     @JsonProperty("is_blacklist")
     private boolean isBlacklist;
 
-    @JsonProperty("evidence")
+    @JsonProperty("evidence_materials")
     private List<EvidenceMaterial> evidenceMaterials;
 
-    @JsonProperty("info")
+    @JsonProperty("raw_data")
     private Map<String, Object> rawData;
 
     @Getter

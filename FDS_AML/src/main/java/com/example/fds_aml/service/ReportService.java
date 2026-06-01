@@ -32,6 +32,10 @@ public class ReportService {
     }
 
     public String generateQwenReport(AiAnalysisResponseDto aiResponse) {
+
+	if (aiResponse.getEvidenceMaterials() == null || aiResponse.getEvidenceMaterials().isEmpty()) {
+    return "AI 분석 결과: 정상 거래로 판단되었습니다.";
+}
         
         String evidenceSummary = aiResponse.getEvidenceMaterials().stream()
                 .map(AiAnalysisResponseDto.EvidenceMaterial::getDesc)
