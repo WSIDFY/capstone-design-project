@@ -122,7 +122,7 @@ class FraudAnalyzer:
             }
 
         # 모델 입력에 불필요한 컬럼 제거('TRANSFER', 'CASH_OUT'을 제외한 컬럼에 대한 내용이 전달되면 제외시키고 학습)
-        X_tx = processed_tx.drop(['isFraud', 'isFlaggedFraud', 'sender', 'receiver', 'is_blacklist'], axis=1, errors='ignore')
+        X_tx = processed_tx.drop(['isFraud', 'isFlaggedFraud', 'sender', 'receiver', 'is_blacklist','transactionDate'], axis=1, errors='ignore')
         prob = self.model.predict_proba(X_tx)[:, 1][0]
         
         # 근거 생성: SHAP 값 추출
