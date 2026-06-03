@@ -13,6 +13,7 @@
 * **Backend**: Spring Boot
 * **Database**: MySQL
 * **API 테스트**: Postman
+* **GCP VM**: Google Cloud Platform Virtual Machine
 
 ---
 
