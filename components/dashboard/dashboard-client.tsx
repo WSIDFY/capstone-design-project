@@ -11,7 +11,7 @@ import { ReportPanel } from "@/components/dashboard/report-panel"
 import { BlacklistPanel } from "@/components/dashboard/blacklist-panel"
 import { generateTransactions, calculateStats, extractBlacklistFromTransactions, transformBackendTransactions } from "@/lib/transaction-generator"
 import type { Transaction, RiskLevel, BlacklistEntry } from "@/lib/transaction-types"
-import { fetchTransactions, getErrorMessage } from "@/lib/api-client"
+import { fetchTransactions, getErrorMessage, patchTransaction } from "@/lib/api-client"
 import { ConnectionStatusBar, type ConnectionStatus, type ConnectionLog } from "@/components/dashboard/connection-status-bar"
 import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle, AlertCircle, CheckCircle } from "lucide-react"
@@ -157,25 +157,51 @@ export default function DashboardClient() {
     setTimeout(() => setRiskAlert(null), 2500)
   }, [])
 
-  const handleUpdateRisk = (transactionId: string, newRisk: RiskLevel) => {
-    setTransactions(prev =>
-      prev.map(tx => {
-        if (tx.id === transactionId) {
-          return {
-            ...tx,
-            riskLevel: newRisk,
-            operatorAssigned: true,
-            suspiciousReason: newRisk === "normal" ? "none" : tx.suspiciousReason
-          }
-        }
-        return tx
-      })
-    )
-    // 선택된 거래의 riskLevel도 업데이트
-    setSelectedTransaction(prev =>
-      prev && prev.id === transactionId ? { ...prev, riskLevel: newRisk } : prev
+  const handleUpdateRisk = async (transactionId: string, newRisk: RiskLevel) => {
+    const currentTransaction = transactions.find((tx) => tx.id === transactionId)
+    if (!currentTransaction) {
+      return
+    }
+
+    const updatedReason = newRisk === "normal" ? "none" : currentTransaction.suspiciousReason
+    const updatedTransaction = {
+      ...currentTransaction,
+      riskLevel: newRisk,
+      operatorAssigned: true,
+      suspiciousReason: updatedReason,
+    }
+
+    setTransactions((prev) => prev.map((tx) => (tx.id === transactionId ? updatedTransaction : tx)))
+    setSelectedTransaction((prev) =>
+      prev && prev.id === transactionId ? updatedTransaction : prev
     )
     showRiskAlert(newRisk)
+
+    if (!USE_BACKEND_API) {
+      return
+    }
+
+    const result = await patchTransaction(transactionId, {
+      riskLevel: newRisk === "normal" ? "정상" : "위험",
+      manualRiskLevel: newRisk,
+      suspiciousReason: updatedReason,
+      operatorAssigned: true,
+    })
+
+    if (!result.success) {
+      toast({
+        title: "저장 실패",
+        description: "서버에 위험도 변경 내용을 저장하지 못했습니다.",
+        variant: "destructive",
+      })
+      await loadTransactions()
+      return
+    }
+
+    toast({
+      title: "저장 완료",
+      description: "변경 내용이 DB에 저장되었습니다.",
+    })
   }
 
   const handleSelectTransaction = (transaction: Transaction) => {
@@ -186,19 +212,17 @@ export default function DashboardClient() {
     setSelectedTransaction(null)
   }
 
-  const handleAddToBlacklist = (transaction: Transaction) => {
+  const handleAddToBlacklist = async (transaction: Transaction) => {
     const newEntry: BlacklistEntry = {
       id: `bl-manual-${transaction.id}-${Date.now()}`,
       name: transaction.recipientName,
       accountNumber: transaction.recipientAccount,
       reason: transaction.suspiciousReason !== "none" ? transaction.suspiciousReason : "fraud_account",
       addedAt: new Date(),
-      relatedTransactionId: transaction.id
+      relatedTransactionId: transaction.id,
     }
-    
-    // 중복 체크 - setState 밖에서 체크
-    const isDuplicate = blacklist.some(e => e.accountNumber === newEntry.accountNumber)
-    
+
+    const isDuplicate = blacklist.some((e) => e.accountNumber === newEntry.accountNumber)
     if (isDuplicate) {
       toast({
         title: "이미 블랙리스트에 등록된 계좌입니다.",
@@ -207,8 +231,42 @@ export default function DashboardClient() {
       })
       return
     }
-    
-    setBlacklist(prev => [...prev, newEntry])
+
+    const targetTransaction = transactions.find((tx) => tx.id === transaction.id)
+    if (!targetTransaction) {
+      return
+    }
+
+    const updatedBlacklistStatus = ((targetTransaction.is_blacklist || 0) | 2) as 0 | 1 | 2 | 3
+    const updatedTransaction: Transaction = {
+      ...targetTransaction,
+      is_blacklist: updatedBlacklistStatus,
+      operatorAssigned: true,
+    }
+
+    setTransactions((prev) => prev.map((tx) => (tx.id === transaction.id ? updatedTransaction : tx)))
+    setSelectedTransaction((prev) =>
+      prev && prev.id === transaction.id ? updatedTransaction : prev
+    )
+    setBlacklist((prev) => [...prev, newEntry])
+
+    if (USE_BACKEND_API) {
+      const result = await patchTransaction(transaction.id, {
+        is_blacklist: updatedBlacklistStatus,
+        operatorAssigned: true,
+      })
+
+      if (!result.success) {
+        toast({
+          title: "저장 실패",
+          description: "서버에 블랙리스트 등록 내용을 저장하지 못했습니다.",
+          variant: "destructive",
+        })
+        await loadTransactions()
+        return
+      }
+    }
+
     toast({
       title: "블랙리스트 등록이 완료되었습니다.",
       description: `계좌: ${newEntry.accountNumber}`,

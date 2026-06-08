@@ -7,7 +7,7 @@
 // - 에러 타입 분류 (네트워크/타임아웃/서버/파싱)
 // ============================================
 
-import type { BackendTransaction } from "./transaction-types"
+import type { BackendTransaction, RiskLevel, SuspiciousReason } from "./transaction-types"
 
 // 에러 타입 분류
 export type ApiErrorType = "network" | "timeout" | "server" | "parse" | "unknown"
@@ -162,5 +162,55 @@ export async function fetchTransactions(
   // 모든 재시도 실패
   console.error("[FDS] 모든 재시도 실패:", lastError)
   return { success: false, error: lastError }
+}
+
+/**
+ * 백엔드 위험도/수정 정보 저장용 요청 바디
+ */
+export interface TransactionUpdatePayload {
+  riskLevel?: "정상" | "위험"
+  manualRiskLevel?: RiskLevel
+  suspiciousReason?: SuspiciousReason
+  manualSuspiciousReason?: SuspiciousReason
+  operatorAssigned?: boolean
+  is_blacklist?: 0 | 1 | 2 | 3
+}
+
+export async function patchTransaction(
+  transactionId: string,
+  payload: TransactionUpdatePayload,
+  options: { timeout?: number } = {}
+): Promise<ApiResult<BackendTransaction>> {
+  const timeout = options.timeout ?? DEFAULT_TIMEOUT
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+  try {
+    const response = await fetch(`${PROXY_ENDPOINT}/${encodeURIComponent(transactionId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const error: ApiError = {
+        type: "server",
+        message: `서버 오류 ${response.status}`,
+        status: response.status,
+      }
+      return { success: false, error }
+    }
+
+    const data = await response.json()
+    return { success: true, data }
+  } catch (err) {
+    clearTimeout(timeoutId)
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { success: false, error: { type: "timeout", message: "요청 시간 초과" } }
+    }
+    return { success: false, error: { type: "network", message: "네트워크 연결 실패", detail: String(err) } }
+  }
 }
 // ============================================

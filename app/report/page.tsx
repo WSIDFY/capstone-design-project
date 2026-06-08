@@ -239,7 +239,7 @@ export interface BackendTransaction {
   setIsLoading(true)
   try {
     // [DB 조회 설정] useBackendApi = true 시 실제 백엔드 API 호출
-    const useBackendApi = false // 백엔드 준비 완료 시 true로 변경
+    const useBackendApi = true // 백엔드 준비 완료 시 true로 변경
 
     let newTransactions: Transaction[]
 

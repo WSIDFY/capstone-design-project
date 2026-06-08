@@ -137,6 +137,9 @@ export interface BackendTransaction {
    * 3: 송신자 + 수신자 둘 다 블랙리스트
    */
   is_blacklist?: 0 | 1 | 2 | 3
+  manualRiskLevel?: "normal" | "caution" | "warning"
+  operatorAssigned?: boolean
+  manualSuspiciousReason?: SuspiciousReason
 }
 
 // 통계 타입

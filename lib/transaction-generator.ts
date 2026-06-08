@@ -287,18 +287,24 @@ export function transformBackendTransactions(
   limit = 100_000
 ): Transaction[] {
   return rows.slice(0, limit).map((row) => {
-    // riskLevel 변환: "정상" → "normal", "위험" → "warning"
-    const riskLevel: RiskLevel = row.riskLevel === "정상" ? "normal" : "warning"
+    // 위험도 변환: 수동 위험도가 있으면 우선 사용, 없으면 백엔드 원본 riskLevel 기반으로 변환
+    const riskLevel: RiskLevel = row.manualRiskLevel
+      ? row.manualRiskLevel
+      : row.riskLevel === "정상"
+        ? "normal"
+        : "warning"
 
     // aiConfidence 추출: aiReport에서 숫자(%) 추출
     const aiConfidence = row.aiReport
       ? extractConfidenceFromReport(row.aiReport)
       : 95
 
-    // suspiciousReason 추출: aiReport 내용으로 판단
-    const suspiciousReason: SuspiciousReason = row.aiReport
-      ? inferReasonFromReport(row.aiReport)
-      : "none"
+    // suspiciousReason 추출: 수동 사유가 있으면 우선 사용, 없으면 aiReport 내용으로 판단
+    const suspiciousReason: SuspiciousReason = row.manualSuspiciousReason
+      ? row.manualSuspiciousReason
+      : row.aiReport
+        ? inferReasonFromReport(row.aiReport)
+        : "none"
 
     // is_blacklist: 백엔드에서 제공하면 사용, 없으면 0 (기본값)
     const isBlacklist = row.is_blacklist ?? 0
