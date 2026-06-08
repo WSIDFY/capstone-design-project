@@ -10,9 +10,18 @@ import { FilterBar } from "@/components/dashboard/filter-bar"
 import { ReportPanel } from "@/components/dashboard/report-panel"
 import { BlacklistPanel } from "@/components/dashboard/blacklist-panel"
 import { generateTransactions, calculateStats, extractBlacklistFromTransactions, transformBackendTransactions } from "@/lib/transaction-generator"
-import type { Transaction, RiskLevel, BlacklistEntry, BackendTransaction } from "@/lib/transaction-types"
+import type { Transaction, RiskLevel, BlacklistEntry } from "@/lib/transaction-types"
+import { fetchTransactions, getErrorMessage } from "@/lib/api-client"
+import { ConnectionStatusBar, type ConnectionStatus, type ConnectionLog } from "@/components/dashboard/connection-status-bar"
 import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle, AlertCircle, CheckCircle } from "lucide-react"
+
+// ============================================
+// [DB 조회 설정] 백엔드 연동 ON/OFF 스위치
+// true: 실제 백엔드 API 호출 / false: 더미데이터 사용
+// 백엔드 준비 완료 시 true로 변경하세요.
+// ============================================
+const USE_BACKEND_API = true
 
 export default function DashboardClient() {
   const { toast } = useToast()
@@ -25,6 +34,18 @@ export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState<"transactions" | "blacklist">("transactions")
   const [theme, setTheme] = useState<"dark" | "light">("dark")
   const [riskAlert, setRiskAlert] = useState<{ risk: RiskLevel; visible: boolean } | null>(null)
+  // ============================================
+  // [DB 조회] 백엔드 연결 상태 및 로그
+  // ============================================
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle")
+  const [connectionError, setConnectionError] = useState<string>("")
+  const [connectionLogs, setConnectionLogs] = useState<ConnectionLog[]>([])
+
+  // 로그 추가 헬퍼
+  const addLog = useCallback((level: ConnectionLog["level"], message: string) => {
+    const time = new Date().toLocaleTimeString("ko-KR", { hour12: false })
+    setConnectionLogs((prev) => [...prev.slice(-49), { time, level, message }])
+  }, [])
 
   useEffect(() => {
     // 초기 테마 적용
@@ -48,59 +69,64 @@ export default function DashboardClient() {
   // ============================================
   const loadTransactions = async () => {
     setIsLoading(true)
-    try {
-      // ============================================
-      // [DB 조회 설정] useBackendApi = true 시 실제 백엔드 API 호출
-      // ============================================
-      const useBackendApi = false // 백엔드 준비 완료 시 true로 변경
 
-      let newTransactions: Transaction[]
+    let newTransactions: Transaction[] = []
 
-      if (useBackendApi) {
-        try {
-          // ============================================
-          // [DB 조회] 백엔드 API 호출
-          // 엔드포인트: http://localhost:8080/transactions
-          // 응답 형식: BackendTransaction[]
-          // ============================================
-          const response = await fetch("http://localhost:8080/transactions")
-          if (!response.ok) throw new Error(`API 오류: ${response.status}`)
-          
-          const backendData: BackendTransaction[] = await response.json()
-          newTransactions = transformBackendTransactions(backendData)
-          // ============================================
-        } catch (error) {
-          console.error("[FDS] 백엔드 API 호출 실패:", error)
-          // 백엔드 실패 시 빈 배열 반환
-          newTransactions = []
-        }
-      } else {
-        // ============================================
-        // [더미데이터] 백엔드 연동 전 테스트용 - 연동 후 삭제
-        // ============================================
-        newTransactions = generateTransactions(100, 0.15)
-        // ============================================
-      }
-
+    // ============================================
+    // [더미데이터] USE_BACKEND_API = false 일 때 테스트용 - 연동 후 삭제
+    // ============================================
+    if (!USE_BACKEND_API) {
+      addLog("warn", "더미데이터 모드로 실행 중 (USE_BACKEND_API = false)")
+      newTransactions = generateTransactions(100, 0.15)
       setTransactions(newTransactions)
-
-      // ============================================
-      // [DB 조회 후 처리] is_blacklist 값에 따라 블랙리스트 자동 추가
-      // is_blacklist: 0=없음, 1=송신자만, 2=수신자만, 3=둘다
-      // ============================================
-      const csvBlacklist = extractBlacklistFromTransactions(newTransactions)
-
-      setBlacklist(prev => {
-        const existingAccounts = new Set(prev.map(e => e.accountNumber))
-        const uniqueNew = csvBlacklist.filter(e => !existingAccounts.has(e.accountNumber))
-        return [...prev, ...uniqueNew]
-      })
-      // ============================================
-    } catch (error) {
-      console.error("[FDS] 거래 내역 로드 실패:", error)
-    } finally {
+      syncBlacklist(newTransactions)
+      setConnectionStatus("mock")
       setIsLoading(false)
+      return
     }
+    // ============================================
+
+    // ============================================
+    // [DB 조회] 백엔드 API 호출 (재시도 + 타임아웃 + 에러 분류)
+    // 엔드포인트: /api/transactions (Next.js 프록시 → localhost:8080)
+    // ============================================
+    setConnectionStatus("connecting")
+    setConnectionError("")
+    addLog("info", "백엔드 연결 시도...")
+
+    const result = await fetchTransactions()
+
+    if (result.success && result.data) {
+      // 성공: 백엔드 데이터 변환
+      newTransactions = transformBackendTransactions(result.data)
+      setTransactions(newTransactions)
+      syncBlacklist(newTransactions)
+      setConnectionStatus("connected")
+      addLog("info", `데이터 ${result.data.length}건 수신 및 변환 완료`)
+    } else {
+      // 실패: 에러 메시지 표시 (데이터는 빈 배열 유지)
+      const msg = result.error ? getErrorMessage(result.error) : "알 수 없는 오류"
+      setConnectionStatus("error")
+      setConnectionError(msg)
+      addLog("error", `연결 실패: ${result.error?.type ?? "unknown"} - ${msg}`)
+      setTransactions([])
+    }
+    // ============================================
+
+    setIsLoading(false)
+  }
+
+  // ============================================
+  // [DB 조회 후 처리] is_blacklist 값에 따라 블랙리스트 자동 추가
+  // is_blacklist: 0=없음, 1=송신자만, 2=수신자만, 3=둘다
+  // ============================================
+  const syncBlacklist = (txs: Transaction[]) => {
+    const csvBlacklist = extractBlacklistFromTransactions(txs)
+    setBlacklist((prev) => {
+      const existingAccounts = new Set(prev.map((e) => e.accountNumber))
+      const uniqueNew = csvBlacklist.filter((e) => !existingAccounts.has(e.accountNumber))
+      return [...prev, ...uniqueNew]
+    })
   }
   // ============================================
 
@@ -227,6 +253,17 @@ export default function DashboardClient() {
           selectedTransaction && activeTab === "transactions" ? "pr-[480px]" : ""
         }`}>
           <div className="container mx-auto px-4 py-6 space-y-6">
+            {/* ============================================
+                [DB 조회] 백엔드 연결 상태 표시 바
+                ============================================ */}
+            <ConnectionStatusBar
+              status={connectionStatus}
+              dataCount={transactions.length}
+              errorMessage={connectionError}
+              logs={connectionLogs}
+              onRetry={loadTransactions}
+            />
+
             <StatsCards stats={stats} />
             <RiskCharts stats={stats} />
             
