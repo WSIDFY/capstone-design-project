@@ -50,7 +50,8 @@ python -m pip install pandas numpy scikit-learn xgboost shap
 <details>
 <summary>SHAP 값 계산 성능 개선</summary>
 | Solution. 샘플링 방식을 통해 응답시간 개선
-<br>
+<br><br>
+
 
 ***(기존 내용)***
 ```python
@@ -82,7 +83,8 @@ python -m pip install pandas numpy scikit-learn xgboost shap
 <details>
 <summary>transfer_history 메모리 누적문제 해결</summary>
 | Solution. 최대 데이터 개수 및 FIFO기법 적용을 통한 데이터 상한선 정의(코드 품질 개선)
-<br>
+<br><br>
+
 
 ***(기존 내용)***
 | 서버 운영 기간 | 누적 거래 수 | 메모리 사용량 | 상태 |
@@ -136,7 +138,8 @@ from collections import OrderedDict
 <details>
 <summary>중복 근거 생성 코드 제거</summary>
 | Solution. 헬퍼 메서드 추가 및 로직 중복 정의 통합
-<br>
+<br><br>
+
 
 ***(기존 내용)***
 | 문제 | 영향 |
@@ -212,6 +215,25 @@ def _create_rule_evidence(self, is_phishing_pattern, is_chain_laundering,
 | **테스트 용이성** | 메서드 단위 테스트 가능 |
 | **버그 위험** | 불일치 가능성 제거 |
 | **확장성** | 새 규칙 추가 시 메서드만 수정 |
+</details>
+
+<details>
+<summary>BLACKLIST_ACCOUNTS 리스트 제거</summary>
+| Solution. 중복
+<br><br>
+
+
+***(기존 내용)***
+- 이미 불러온 거래 데이터에 is_blacklist 필드가 포함되어 있으면 그 값을 사용하여 검증,<br>
+그렇지 않은 경우에는 preprocess.py의 하드코딩된 BLACKLIST_ACCOUNTS로 대체 조회
+
+***(수정 내용)***
+- 받아오는 거래내역 데이터에 ‘is_blacklist’값을 참조하여 블랙리스트 의심거래 시나리오를 식별하기 때문에<br>
+해당 리스트는 초기 테스트용으로만 사용 되었으며 현재는 불필요한 2중 검증이므로<br>
+해당 리스트와 해당 리스트를 사용하여 검증하는 로직의 제거 진행
+
+***(개선 효과)***
+- 검증 소요시간 개선
 </details>
 
 ---
