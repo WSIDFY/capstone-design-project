@@ -4,6 +4,7 @@ import shap
 import model_manager
 import preprocess
 import datetime
+from collections import OrderedDict
 
 #? [거래내역 생성기로부터 데이터를 받아와서 학습 된 모델을 토대로 검증 로직을 수행한 뒤 근거데이터 생성]
 #? 주요 기능: 실시간 거래 데이터 분석, 모델 예측 실행, SHAP 기반 근거 데이터 생성, 보이스피싱 패턴, 자금세탁 패턴 및 블랙리스트 계좌 탐지
@@ -19,7 +20,85 @@ class FraudAnalyzer:
         self.explainer = shap.TreeExplainer(self.model)
 
         # 자금세탁 패턴 추적용 메모리(동일 nameDest로 들어온 금액이 바로 다음 step에서 CASH_OUT으로 빠져나가는지 감지)
-        self.transfer_history = {}
+        # FIFO 방식으로 최대 10,000개 거래 기록 유지
+        self.MAX_HISTORY_SIZE = 10000
+        self.RETENTION_STEPS = 7 * 24  # 7일 (시간 단위)
+        self.transfer_history = OrderedDict()
+
+    # FIFO 및 TTL 방식으로 거래내역 저장 관리
+    def _update_transfer_history(self, dest_acc, step, amount):
+        """
+        FIFO + TTL 방식으로 transfer_history 관리
+        - 최대 크기 초과 시 가장 오래된 항목 제거 (FIFO방식)
+        - 오래된 거래(7일 이상) 주기적으로 정리 (TTL)
+        """
+        # 오래된 거래 정리 (TTL 기반)
+        expired_accounts = [
+            acc for acc, (s, _) in self.transfer_history.items()
+            if step - s > self.RETENTION_STEPS
+        ]
+        for acc in expired_accounts:
+            del self.transfer_history[acc]
+        
+        # 새 항목 추가
+        self.transfer_history[dest_acc] = (step, amount)
+        
+        # 최대 크기 초과 시 가장 오래된 항목 제거 (FIFO)
+        if len(self.transfer_history) > self.MAX_HISTORY_SIZE:
+            self.transfer_history.popitem(last=False)
+
+    # 규칙 기반 근거 생성 함수
+    def _create_rule_evidence(self, is_phishing_pattern, is_chain_laundering, 
+                              is_orig_black, is_dest_black, 
+                              orig_acc, dest_acc, amount, laundering_evidence):
+        """
+        규칙 기반 근거 생성 (보이스피싱, 자금세탁, 블랙리스트)
+        
+        Args:
+            is_phishing_pattern: 보이스피싱 의심 패턴 여부
+            is_chain_laundering: 연쇄 자금세탁 패턴 여부
+            is_orig_black: 송신자 블랙리스트 여부
+            is_dest_black: 수신자 블랙리스트 여부
+            orig_acc, dest_acc, amount: 거래 정보
+            laundering_evidence: 자금세탁 근거 객체
+            
+        Returns:
+            list: 규칙 기반 근거 리스트
+        """
+        evidence = []
+        
+        # 블랙리스트 송신자
+        if is_orig_black:
+            evidence.append({
+                "feature": "sender",
+                "score": 10.0,
+                "value": orig_acc,
+                "desc": "블랙리스트 송신자 식별 : 내부 데이터베이스에 등록된 고위험 블랙리스트 대상자와의 연루 거래 식별. 제재 대상자와의 금지된 금융 접촉으로 분류됨."
+            })
+        
+        # 블랙리스트 수신자
+        if is_dest_black:
+            evidence.append({
+                "feature": "receiver",
+                "score": 10.0,
+                "value": dest_acc,
+                "desc": "블랙리스트 수신자 식별 : 내부 데이터베이스에 등록된 고위험 블랙리스트 대상자와의 연루 거래 식별. 제재 대상자와의 금지된 금융 접촉으로 분류됨."
+            })
+        
+        # 보이스피싱 패턴
+        if is_phishing_pattern:
+            evidence.append({
+                "feature": "phishing_pattern",
+                "score": 10.0,
+                "value": amount,
+                "desc": "보이스피싱 의심 : 계좌 내 전액 외부 송금 발생 및 잔액 급감(0원). 단시간 내 자산 전액 유출은 전형적인 보이스피싱 피해 사례의 긴급 자금 인출 패턴으로 판단됨."
+            })
+        
+        # 연쇄 자금세탁 패턴
+        if is_chain_laundering and laundering_evidence is not None:
+            evidence.append(laundering_evidence)
+        
+        return evidence
 
     # 한 건의 거래 데이터를 받아 탐지하고 Qwen 보고서 근거 데이터 생성
     def analyze_transaction(self, raw_tx_data):
@@ -77,7 +156,7 @@ class FraudAnalyzer:
 
         # 현재 거래가 TRANSFER이면 연쇄 탐지를 위해 기록 유지
         if tx_type == 'TRANSFER' and dest_acc:
-            self.transfer_history[dest_acc] = (step, amount)
+            self._update_transfer_history(dest_acc, step, amount)
 
         # 송/수신자 중 블랙리스트에 속한 사용자가 있다면 의심거래내역으로 분류
         is_blacklist = is_orig_black or is_dest_black
@@ -91,19 +170,11 @@ class FraudAnalyzer:
         
         # 만약 사기 유형이 발생하는 컬럼이 아닌 경우('TRANSFER', 'CASH_OUT'컬럼을 제외한 컬럼일 때)
         if processed_tx.empty:
-            evidence = []
-            if is_orig_black:
-                evidence.append({"column": "sender", "contribution": 10.0, 
-                                 "actual_value": orig_acc, "desc": "블랙리스트 송신자 식별 : 내부 데이터베이스에 등록된 고위험 블랙리스트 대상자와의 연루 거래 식별. 제재 대상자와의 금지된 금융 접촉으로 분류됨."})
-            if is_dest_black:
-                evidence.append({"column": "receiver", "contribution": 10.0, 
-                                 "actual_value": dest_acc, "desc": "블랙리스트 수신자 식별 : 내부 데이터베이스에 등록된 고위험 블랙리스트 대상자와의 연루 거래 식별. 제재 대상자와의 금지된 금융 접촉으로 분류됨."})
-            if is_phishing_pattern:
-                evidence.append({"column": "phishing_pattern", "contribution": 10.0,
-                                 "actual_value": amount,
-                                 "desc": "보이스피싱 의심 : 계좌 내 전액 외부 송금 발생 및 잔액 급감(0원). 단시간 내 자산 전액 유출은 전형적인 보이스피싱 피해 사례의 긴급 자금 인출 패턴으로 판단됨."})
-            if is_chain_laundering and laundering_evidence is not None:
-                evidence.append(laundering_evidence)
+            evidence = self._create_rule_evidence(
+                is_phishing_pattern, is_chain_laundering,
+                is_orig_black, is_dest_black,
+                orig_acc, dest_acc, amount, laundering_evidence
+            )
 
             # info에서 is_blacklist 필드 제외 (순수 거래 정보만 포함)
             info_data = {k: v for k, v in raw_tx_data.items() if k != 'is_blacklist'}
@@ -144,7 +215,7 @@ class FraudAnalyzer:
                 if e['column'] not in ['sender', 'receiver']
             ][:3]
         
-        # *Qwen에게 전달할 최종 정보*
+        # Qwen에게 전달할 최종 정보
         is_suspicious_final = bool(rule_suspicion or prob > 0.8)
         
         # info에서 is_blacklist 필드 제외 (순수 거래 정보만 포함)
@@ -161,21 +232,14 @@ class FraudAnalyzer:
 
         # 규칙 탐지 근거를 최상단에 삽입 (의심거래일 때만)
         if is_suspicious_final:
-            if is_phishing_pattern:
-                tx_analysis["evidence"].insert(0, {
-                    "feature": "phishing_pattern", "score": 10.0, "value": amount,
-                    "desc": "보이스피싱 의심 : 계좌 내 전액 외부 송금 발생 및 잔액 급감(0원). 단시간 내 자산 전액 유출은 전형적인 보이스피싱 피해 사례의 긴급 자금 인출 패턴으로 판단됨."
-                })
-            if is_chain_laundering and laundering_evidence is not None:
-                tx_analysis["evidence"].insert(0, laundering_evidence)
-            if is_orig_black:
-                tx_analysis["evidence"].insert(0, {
-                    "feature": "sender", "score": 10.0, "value": orig_acc, "desc": "블랙리스트 송신자 식별 : 내부 데이터베이스에 등록된 고위험 블랙리스트 대상자와의 연루 거래 식별. 제재 대상자와의 금지된 금융 접촉으로 분류됨."
-                })
-            if is_dest_black:
-                tx_analysis["evidence"].insert(0, {
-                    "feature": "receiver", "score": 10.0, "value": dest_acc, "desc": "블랙리스트 수신자 식별 : 내부 데이터베이스에 등록된 고위험 블랙리스트 대상자와의 연루 거래 식별. 제재 대상자와의 금지된 금융 접촉으로 분류됨."
-                })
+            rule_evidence = self._create_rule_evidence(
+                is_phishing_pattern, is_chain_laundering,
+                is_orig_black, is_dest_black,
+                orig_acc, dest_acc, amount, laundering_evidence
+            )
+            # 역순 삽입 (최상단에 배치)
+            for evidence_item in reversed(rule_evidence):
+                tx_analysis["evidence"].insert(0, evidence_item)
             
         return tx_analysis  # Qwen으로 전달되는 최종 분석 결과
 
