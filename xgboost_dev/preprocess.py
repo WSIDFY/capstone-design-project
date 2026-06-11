@@ -31,13 +31,9 @@ def load_paysim_data(file_path):
 
     return df
 
-#TODO 블랙리스트 계좌 리스트 정의 (현재 5개의 사용자) -> DB조회로 수정 예정
-BLACKLIST_ACCOUNTS = {'C22182953', 'M649131405', 'C1525028989', 'C634635816', 'M1231371424'}
-
-
 # 이상거래 식별 시나리오 4가지를 모델이 학습 가능하도록 파생 변수 생성
-# DB화 이후에는 BLACKLIST_ACCOUNTS 대신 DB의 블랙리스트 테이블/캐시를 조회하도록 변경예정
-# TODO: DB화 후에는 거래 DataFrame 생성 단계에서 DB 컬럼명과 매핑이 일치하는지 확인 필요
+# 현재 거래 데이터에 is_blacklist 컬럼이 포함되어 있으므로, 해당 값에서 블랙리스트 여부를 파생합니다.
+# TODO: DB화 이후에는 is_blacklist 값이 DB 조회 또는 캐시로부터 공급되는지 확인 필요
 def engineer_features(df):
     print("피처 엔지니어링 진행 중...")
 
@@ -46,8 +42,13 @@ def engineer_features(df):
         df['type'] = df['type'].astype('category')
 
     # 송신자와 수신자 각각 블랙리스트 여부를 표시
-    df['is_blacklist_orig'] = df['sender'].isin(BLACKLIST_ACCOUNTS).astype(int)
-    df['is_blacklist_dest'] = df['receiver'].isin(BLACKLIST_ACCOUNTS).astype(int)
+    if 'is_blacklist' in df.columns:
+        blacklist_values = df['is_blacklist'].fillna(0).astype(int)
+        df['is_blacklist_orig'] = blacklist_values.isin([1, 3]).astype(int)
+        df['is_blacklist_dest'] = blacklist_values.isin([2, 3]).astype(int)
+    else:
+        df['is_blacklist_orig'] = 0
+        df['is_blacklist_dest'] = 0
 
     # 1. 계좌 잔액 오류 판별 (newbalance = oldbalance - amount)
     df['errorBalanceOrig'] = df['newbalanceOrig'] + df['amount'] - df['oldbalanceOrg']

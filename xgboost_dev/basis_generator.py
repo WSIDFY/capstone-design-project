@@ -117,23 +117,15 @@ class FraudAnalyzer:
         oldbalance_org = float(raw_tx_data.get('oldbalanceOrg', 0.0))   # 송신자 거래 전 잔액
         newbalance_orig = float(raw_tx_data.get('newbalanceOrig', 0.0)) # 송신자 거래 후 잔액
 
-        # 블랙리스트 판별: 입력 데이터에 is_blacklist 필드가 존재하면 해당 값을 사용하여 송신자/수신자 블랙리스트 여부 판단
-        # (없으면 기존 방식대로 계좌번호로 판별)
-        blacklist_flag = raw_tx_data.get('is_blacklist')
-        if blacklist_flag is not None:
-            try:
-                flag_value = int(blacklist_flag)
-            except (ValueError, TypeError):
-                flag_value = 0
+        # 블랙리스트 판별: 입력 데이터에 포함된 is_blacklist 값을 기반으로 송신자/수신자 블랙리스트 여부 판단
+        blacklist_flag = raw_tx_data.get('is_blacklist', 0)
+        try:
+            flag_value = int(blacklist_flag)
+        except (ValueError, TypeError):
+            flag_value = 0
 
-            is_orig_black = flag_value in (1, 3)
-            is_dest_black = flag_value in (2, 3)
-        else:
-            # TODO: 데이터 셋 DB화 이후 DB 블랙리스트 테이블을 조회하는 함수로 대체
-            # 예: is_orig_black = self.blacklist_service.is_blacklisted(orig_acc)
-            #     is_dest_black = self.blacklist_service.is_blacklisted(dest_acc)
-            is_orig_black = orig_acc in preprocess.BLACKLIST_ACCOUNTS
-            is_dest_black = dest_acc in preprocess.BLACKLIST_ACCOUNTS
+        is_orig_black = flag_value in (1, 3)
+        is_dest_black = flag_value in (2, 3)
 
         # 보이스피싱 의심 패턴(잔고 전체를 이체하고 남은 잔고가 0인 경우)
         is_phishing_pattern = amount == oldbalance_org and newbalance_orig == 0
