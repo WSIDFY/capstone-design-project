@@ -19,7 +19,7 @@
 ### 주요 라이브러리
 - **xgboost**: 실시간 사기 탐지 핵심 엔진.
 - **pandas/numpy**: PaySim 데이터셋 핸들링.
-- **shap**: "왜 이 거래가 사기인가?"에 대한 근거 추출 (Qwen 리포트 생성용).
+- **shap**: 의심거래에 대한 근거 추출 (Qwen 리포트 생성용).
 - **fastapi/uvicorn**: 실시간 탐지 API 서버 구축.
 - **python-dotenv**: API 키 등 보안 설정 관리.
 - **dashscope**: Qwen 2.5/3 모델 API 연동 라이브러리 (Alibaba Cloud).
