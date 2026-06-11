@@ -45,10 +45,12 @@ python -m pip install pandas numpy scikit-learn xgboost shap
 - [이상거래 보고서 생성]
     - AI가 전달한 근거데이터를 바탕으로 Qwen AI가 왜 이상거래로 식별되었는지에 대한 보고서를 작성하여 제시합니다.
 
+---
 #### 트러블 슈팅
 <details>
-<summary>**SHAP 값 계산 성능 개선**</summary>
+<summary>SHAP 값 계산 성능 개선</summary>
 | Solution. 샘플링 방식을 통해 응답시간 개선
+<br>
 
 ***(기존 내용)***
 ```python
@@ -78,21 +80,20 @@ python -m pip install pandas numpy scikit-learn xgboost shap
 </details>
 
 <details>
-<summary>**transfer_history 메모리 누적문제 해결**</summary>
+<summary>transfer_history 메모리 누적문제 해결</summary>
 | Solution. 최대 데이터 개수 및 FIFO기법 적용을 통한 데이터 상한선 정의(코드 품질 개선)
+<br>
 
 ***(기존 내용)***
-```python
-서버 운영 기간       누적 거래 수      메모리 사용량      상태
-─────────────────────────────────────────────────────────
-1주일               ~350,000        약 175MB          ✓ 정상
-1개월               ~1,500,000      약 750MB          ⚠️ 주의
-3개월               ~4,500,000      약 2.25GB         ⚠️⚠️ 위험
-6개월               ~9,000,000      약 4.5GB          ⚠️⚠️⚠️ 심각
-1년                 ~18,000,000     약 9GB            ❌ 위험
+| 서버 운영 기간 | 누적 거래 수 | 메모리 사용량 | 상태 |
+| --- | --- | --- | --- |
+| **1주일** | ~350,000 | 약 175MB | ✓ 정상 |
+| **1개월** | ~1,500,000 | 약 750MB | ⚠️ 주의 |
+| **3개월** | ~4,500,000 | 약 2.25GB | ⚠️⚠️ 위험 |
+| **6개월** | ~9,000,000 | 약 4.5GB | ⚠️⚠️⚠️ 심각 |
+| **1년** | ~18,000,000 | 약 9GB | ❌ 위험 |s
+(주기: 일일 50,000건 TRANSFER 거래 기준)
 
-# 주기: 일일 50,000건 TRANSFER 거래 기준
-```
 
 ***(수정 내용)***
 ```python
@@ -133,11 +134,11 @@ from collections import OrderedDict
 </details>
 
 <details>
-<summary>**중복 근거 생성 코드 제거**</summary>
+<summary>중복 근거 생성 코드 제거</summary>
 | Solution. 헬퍼 메서드 추가 및 로직 중복 정의 통합
+<br>
 
 ***(기존 내용)***
-```python
 | 문제 | 영향 |
 | --- | --- |
 | **코드 중복** | 같은 로직이 2곳에 정의 |
@@ -145,7 +146,7 @@ from collections import OrderedDict
 | **유지보수 어려움** | 규칙 수정 시 2곳 모두 변경 필요 |
 | **버그 가능성** | 한 곳만 수정 시 불일치 발생 |
 | **필드명 불일치** | 첫 번째: `"column"`, 두 번째: `"feature"` |
-```
+
 
 ***(수정 내용)***
 ```python
@@ -213,7 +214,7 @@ def _create_rule_evidence(self, is_phishing_pattern, is_chain_laundering,
 | **확장성** | 새 규칙 추가 시 메서드만 수정 |
 </details>
 
-
+---
 ***(참고)***  
 - 본 프로젝트는 "Paysim"데이터 셋을 활용한 프로젝트입니다.
 (참고 : https://www.kaggle.com/datasets/ealaxi/paysim1)
