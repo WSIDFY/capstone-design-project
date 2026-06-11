@@ -1,15 +1,14 @@
-from typing import Any, Dict, List, Union
-
 import pandas as pd
 import preprocess
 import train
 import model_manager
+import uvicorn
+from typing import Any, Dict, List, Union
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import average_precision_score
 from basis_generator import FraudAnalyzer
-import uvicorn
 
 app = FastAPI()
 
@@ -36,7 +35,7 @@ class TransactionRequest(BaseModel):
     class Config:
         extra = "allow"
 
-
+# AI 분석 결과에 대한 형식 정의
 class AiAnalysisResponse(BaseModel):
     is_suspicious: bool
     fraud_probability: float
@@ -44,7 +43,7 @@ class AiAnalysisResponse(BaseModel):
     evidence_materials: List[EvidenceMaterial]
     raw_data: Dict[str, Any]
 
-#? [AI모델 성능 검증 및 실행 코드 파일(기존, 신규 모델 분기처리), 가중치 책정]
+#? [AI모델 성능 검증 및 실행 코드 파일(기존,신규,분기처리), 가중치 책정]
 #? 주요 기능: 전체 파이프라인 제어(학습/로드 분기) 및 실시간 탐지 API 서버 실행
 
 # 모델의 피처 중요도 분석 (학습된 모델이 있을 때만 실행)
@@ -60,7 +59,7 @@ def analyze_model_weights(model):
     for i, (feat, score) in enumerate(sorted_gain[:5], 1):
         print(f"{i}. {feat}: {score:.2f}")
 
-# 모델이 존재하면 로드, 없으면 학습 후 저장
+# 모델 학습 및 저장 함수 (기존에 모델이 없을 시 수행)
 def train_model():
     print("기존 학습된 모델이 없음(전처리 및 신규 학습 시작)")
     train_files = ['data/split_0.csv', 'data/split_1.csv', 'data/split_2.csv']
@@ -109,7 +108,7 @@ def convert_evidence_materials(evidence_list: List[Dict[str, Any]]) -> List[Dict
         })
     return materials
 
-
+# FastAPI 서버 실행 및 거래 분석 API 엔드포인트 정의
 @app.on_event("startup")
 async def startup_event():
     app.state.analyzer = initialize_analyzer()
@@ -140,7 +139,6 @@ def predict(transaction: TransactionRequest):
         'raw_data': result.get('info', raw_tx_data)
     }
 
-
+# XGBoost 머신러닝 실행 코드
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)
-

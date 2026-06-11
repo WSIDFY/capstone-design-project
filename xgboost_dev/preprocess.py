@@ -5,14 +5,12 @@ import os
 #? [데이터 전처리 파이프라인 파일 & 블랙리스트 계좌 관리]
 #? 주요 기능 : 데이터 로딩, 자료형 최적화(float32 등), 블랙리스트 관리, 파생 변수(잔액 오류 등) 생성
 
-# 상대 경로를 사용하여 data 폴더 내 파일 지정
-# TODO: DB화 이후에는 이 CSV 경로 대신 DB 조회 함수로 대체
+# TODO: DB화 이후에는 이 CSV 경로 대신 DB 조회 함수로 교체
 DATA_PATH = os.path.join('data', 'paysim_data.csv')
 
-# *컬럼별 데이터 타입 지정*
+# 컬럼별 데이터 타입 지정
 # TODO: DB화 후 이 함수는 DB에서 거래 데이터를 읽어오는 쿼리/ORM 호출로 교체
 def load_paysim_data(file_path):
-    # 메모리 절약을 위해 데이터 타입 지정 (float64 -> float32)
     dtypes = {
         'step': np.int32,
         'type': 'category',
@@ -24,10 +22,10 @@ def load_paysim_data(file_path):
         'isFraud': np.int8,
         'isFlaggedFraud': np.int8
     }
-    
+    # 파일 존재 여부 확인
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"파일을 찾을 수 없습니다: {file_path}")
-
+    # 파일이 존재한다면 데이터 로딩
     print(f"데이터 로딩 중: {file_path}")
     df = pd.read_csv(file_path, dtype=dtypes)
 
@@ -37,7 +35,7 @@ def load_paysim_data(file_path):
 BLACKLIST_ACCOUNTS = {'C22182953', 'M649131405', 'C1525028989', 'C634635816', 'M1231371424'}
 
 
-# *이상거래 식별 시나리오 4가지를 모델이 학습 가능하도록 파생 변수 생성*
+# 이상거래 식별 시나리오 4가지를 모델이 학습 가능하도록 파생 변수 생성
 # DB화 이후에는 BLACKLIST_ACCOUNTS 대신 DB의 블랙리스트 테이블/캐시를 조회하도록 변경예정
 # TODO: DB화 후에는 거래 DataFrame 생성 단계에서 DB 컬럼명과 매핑이 일치하는지 확인 필요
 def engineer_features(df):
@@ -67,12 +65,13 @@ def engineer_features(df):
     return df_filtered
 
 
-# *학습 전 isFraud 라벨의 비율을 확인하여 scale_pos_weight값(가중치)을 결정*
+# 학습 전 isFraud 라벨의 비율을 확인하여 scale_pos_weight값(가중치)을 결정
 def check_imbalance(df):
     fraud_count = df['isFraud'].sum()
     total_count = len(df)
     ratio = (fraud_count / total_count) * 100
     
+    # 불균형 데이터 처리를 위한 가중치의 계산(사기 거래가 적을수록 가중치 증가)
     scale_pos_weight = (total_count - fraud_count) / fraud_count
     
     print(f"분석 결과:")

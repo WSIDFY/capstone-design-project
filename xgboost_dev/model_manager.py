@@ -2,8 +2,7 @@ import os
 import xgboost as xgb
 
 #? [학습이 완료된 AI모델의 저장 및 로드 관련 코드]
-#? 주요 기능: 학습된 모델의 JSON 포맷 저장 및 로드 관리
-# XGBoost가 학습한 수학적 가중치와 결정 트리(Decision Tree) 구조를 포함한 데이터가 저장된 AI모델 저장
+#? 주요 기능: XGBoost가 학습한 수학적 가중치와 결정 트리(Decision Tree) 구조를 포함한 데이터를 저장, Json형식으로 저장된 모델 로드
 MODEL_DIR = 'models'
 MODEL_PATH = os.path.join(MODEL_DIR, 'fds_xgb_model.json')
 
@@ -15,7 +14,7 @@ def save_model(model):
     model.save_model(MODEL_PATH)
     print(f"모델 저장 완료: {MODEL_PATH}")
 
-# 저장된 모델이 있으면 불러오고, 없으면 None반환
+# 저장된 모델이 있으면 불러오고, 없으면 None반환 
 def load_existing_model():
     if os.path.exists(MODEL_PATH):
         print(f"기존 모델 로드 중: {MODEL_PATH}")

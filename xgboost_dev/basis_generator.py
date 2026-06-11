@@ -5,15 +5,13 @@ import model_manager
 import preprocess
 import datetime
 
-#? [데이터를 받아와서 학습 된 모델을 토대로 검증 후 근거데이터 생성]
-#? 주요 기능: 실시간 거래 분석, SHAP 기반 기여도 산출, 블랙리스트 즉시 판별 및 근거 데이터 생성
-#? FDS_AML 내부 생성기가 거래를 생성하여 백엔드로 전송하면 이 모듈이 해당 거래를 분석합니다.
+#? [거래내역 생성기로부터 데이터를 받아와서 학습 된 모델을 토대로 검증 로직을 수행한 뒤 근거데이터 생성]
+#? 주요 기능: 실시간 거래 데이터 분석, 모델 예측 실행, SHAP 기반 근거 데이터 생성, 보이스피싱 패턴, 자금세탁 패턴 및 블랙리스트 계좌 탐지
 
 class FraudAnalyzer:
 
     def __init__(self):
-        # 미리 학습된 모델 로드
-        self.model = model_manager.load_existing_model()
+        self.model = model_manager.load_existing_model()        # 미리 학습된 모델 로드
         if self.model is None:
             raise FileNotFoundError("학습된 모델 파일이 없습니다. 먼저 학습을 진행해 주세요.")
             
@@ -40,7 +38,8 @@ class FraudAnalyzer:
         oldbalance_org = float(raw_tx_data.get('oldbalanceOrg', 0.0))   # 송신자 거래 전 잔액
         newbalance_orig = float(raw_tx_data.get('newbalanceOrig', 0.0)) # 송신자 거래 후 잔액
 
-        # 블랙리스트 판별: split_3.csv의 is_blacklist 값 활용
+        # 블랙리스트 판별: 입력 데이터에 is_blacklist 필드가 존재하면 해당 값을 사용하여 송신자/수신자 블랙리스트 여부 판단
+        # (없으면 기존 방식대로 계좌번호로 판별)
         blacklist_flag = raw_tx_data.get('is_blacklist')
         if blacklist_flag is not None:
             try:
@@ -121,13 +120,13 @@ class FraudAnalyzer:
                 "note": "AI 분석 제외 유형이나 블랙리스트 계좌 포함됨"
             }
 
-        # 모델 입력에 불필요한 컬럼 제거('TRANSFER', 'CASH_OUT'을 제외한 컬럼에 대한 내용이 전달되면 제외시키고 학습)
+        # 모델 입력에 불필요한 컬럼 제거 (isFraud, isFlaggedFraud는 레이블이므로 제거, sender/receiver는 모델 학습에 사용되지 않았으므로 제거)
         X_tx = processed_tx.drop(['isFraud', 'isFlaggedFraud', 'sender', 'receiver', 'is_blacklist','transactionDate'], axis=1, errors='ignore')
         prob = self.model.predict_proba(X_tx)[:, 1][0]
         
         # 근거 생성: SHAP 값 추출
         # shap_values[1]은 '사기(Class 1)'로 분류될 확률에 대한 기여도
-        shap_values = self.explainer.shap_values(X_tx)
+        shap_values = self.explainer.shap_values(X_tx, check_additivity=False)
         feature_names = X_tx.columns.tolist() # 기여도가 높은 순서대로 피처와 수치 매핑
         contributions = shap_values[0] # 단일 데이터라 첫 번째 인덱스 사용
         
@@ -181,7 +180,7 @@ class FraudAnalyzer:
         return tx_analysis  # Qwen으로 전달되는 최종 분석 결과
 
 
-#? XGBoost 머신러닝 실행 코드
+# XGBoost 머신러닝 실행 코드
 if __name__ == "__main__":
     analyzer = FraudAnalyzer()
 
