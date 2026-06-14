@@ -112,13 +112,13 @@ export function calculateStats(transactions: Transaction[]) {
   return stats
 }
 
-// 의심 사유 한글 변환
+// 탐지 결과 한글 변환 (구 명칭: 탐지 사유)
 export function getReasonText(reason: SuspiciousReason): string {
   const reasonMap: Record<SuspiciousReason, string> = {
-    first_large_transfer: "첫 거래 고액 이체 (보이스피싱 의심)",
+    first_large_transfer: "보이스피싱 의심 거래",
     unusual_location: "비정상 위치 결제 (카드 도난 의심)",
     fraud_account: "신고된 사기계좌 송금",
-    money_laundering: "자금세탁 의심",
+    money_laundering: "자금세탁 의심 거래",
     rapid_transactions: "단시간 다수 거래",
     none: "정상"
   }
@@ -159,7 +159,8 @@ export function parseCSVTransactions(
   limit = 100_000
 ): Transaction[] {
   return rows.slice(0, limit).map((row) => {
-    const isBlacklisted = row.is_blacklist === 1
+    const blacklistValue = row.isBlacklist ?? row.is_blacklist ?? 0
+    const isBlacklisted = blacklistValue === 1 || blacklistValue === 2 || blacklistValue === 3
 
     const suspiciousReason: SuspiciousReason = isBlacklisted
       ? "fraud_account"
@@ -181,18 +182,22 @@ export function parseCSVTransactions(
       riskLevel,
       suspiciousReason,
       aiConfidence: Number(row.ai_confidence),
-      operatorAssigned: false,
-      is_blacklist: row.is_blacklist,
+      operatorAssigned: isBlacklisted,
+      is_blacklist: blacklistValue,
     }
   })
 }
 
-/** suspicious_reason 과 is_blacklist 값으로 위험도를 도출 */
+/**
+ * suspicious_reason 과 is_blacklist 값으로 위험도를 도출
+ * 주의: 보이스피싱(first_large_transfer), 자금세탁(money_laundering)
+ * 경고: 블랙리스트(is_blacklist > 0), 사기계좌(fraud_account)
+ */
 function deriveRiskLevel(reason: SuspiciousReason, isBlacklisted: boolean): RiskLevel {
-  if (isBlacklisted || reason === "fraud_account" || reason === "money_laundering") {
+  if (isBlacklisted || reason === "fraud_account") {
     return "warning"
   }
-  if (reason === "first_large_transfer" || reason === "unusual_location" || reason === "rapid_transactions") {
+  if (reason === "first_large_transfer" || reason === "money_laundering" || reason === "unusual_location" || reason === "rapid_transactions") {
     return "caution"
   }
   return "normal"
@@ -287,45 +292,49 @@ export function transformBackendTransactions(
   limit = 100_000
 ): Transaction[] {
   return rows.slice(0, limit).map((row) => {
-    // 위험도 변환: 수동 위험도가 있으면 우선 사용, 없으면 백엔드 원본 riskLevel 기반으로 변환
+    // 위험도 변환: 수동 위험도 우선 사용. 없으면 is_blacklist/suspiciousReason 기반으로 도출
+    const isBlacklistedRow = (row.isBlacklist ?? row.is_blacklist ?? 0) > 0
+    const rawSuspiciousReason: SuspiciousReason = row.manualSuspiciousReason
+      ? row.manualSuspiciousReason
+      : row.aiReport
+        ? inferReasonFromReport(row.aiReport)
+        : "none"
     const riskLevel: RiskLevel = row.manualRiskLevel
       ? row.manualRiskLevel
-      : row.riskLevel === "정상"
-        ? "normal"
-        : "warning"
+      : isBlacklistedRow
+        ? "warning"
+        : row.riskLevel === "정상"
+          ? "normal"
+          : deriveRiskLevel(rawSuspiciousReason, false)
 
     // aiConfidence 추출: aiReport에서 숫자(%) 추출
     const aiConfidence = row.aiReport
       ? extractConfidenceFromReport(row.aiReport)
       : 95
 
-    // suspiciousReason 추출: 수동 사유가 있으면 우선 사용, 없으면 aiReport 내용으로 판단
-    const suspiciousReason: SuspiciousReason = row.manualSuspiciousReason
-      ? row.manualSuspiciousReason
-      : row.aiReport
-        ? inferReasonFromReport(row.aiReport)
-        : "none"
+    // suspiciousReason: 위에서 이미 도출된 rawSuspiciousReason 재사용
+    const suspiciousReason: SuspiciousReason = rawSuspiciousReason
 
     // is_blacklist: 백엔드에서 제공하면 사용, 없으면 0 (기본값)
-    const isBlacklist = row.is_blacklist ?? 0
+    const isBlacklist = row.isBlacklist ?? row.is_blacklist ?? 0
 
     return {
       id: String(row.id),
-      senderName: row.sender, // 동일값 사용
-      senderType: "individual", // 백엔드에서 구분 제공 안 함
+      senderName: row.sender,
+      senderType: "individual",
       senderAccount: row.sender,
-      recipientName: row.receiver, // 동일값 사용
+      recipientName: row.receiver,
       recipientAccount: row.receiver,
       amount: row.amount,
-      date: new Date(row.transactionDate), // "yyyy-MM-dd HH:mm:ss" 파싱
+      date: new Date(row.transactionDate),
       category: row.type === "TRANSFER" ? "송금" : "현금인출",
-      location: undefined, // 백엔드에서 제공 안 함
+      location: undefined,
       riskLevel,
       suspiciousReason,
       aiConfidence,
-      operatorAssigned: false,
+      operatorAssigned: row.operatorAssigned ?? false,
       is_blacklist: isBlacklist,
-      aiReport: row.aiReport // 백엔드 AI 보고서 텍스트 추가
+      aiReport: row.aiReport
     }
   })
 }

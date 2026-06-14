@@ -64,6 +64,24 @@ export default function DashboardClient() {
     loadTransactions()
   }, [])
 
+  // 실시간 자동갱신: 10초마다 거래 내역 새로고침 (페이지 전체 새로고침 없이 로그만 갱신)
+  useEffect(() => {
+    if (!USE_BACKEND_API) return
+    const POLL_INTERVAL = 10_000
+    const intervalId = setInterval(() => {
+      // 백그라운드 폴링: 로딩 스피너 없이 조용히 갱신
+      fetchTransactions().then((result) => {
+        if (result.success && result.data) {
+          const updated = transformBackendTransactions(result.data)
+            .sort((a, b) => b.date.getTime() - a.date.getTime())
+          setTransactions(updated)
+          syncBlacklist(updated)
+        }
+      })
+    }, POLL_INTERVAL)
+    return () => clearInterval(intervalId)
+  }, [])
+
   // ============================================
   // [DB 조회] 거래 내역 로드 함수
   // ============================================
@@ -78,6 +96,7 @@ export default function DashboardClient() {
     if (!USE_BACKEND_API) {
       addLog("warn", "더미데이터 모드로 실행 중 (USE_BACKEND_API = false)")
       newTransactions = generateTransactions(100, 0.15)
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
       setTransactions(newTransactions)
       syncBlacklist(newTransactions)
       setConnectionStatus("mock")
@@ -97,8 +116,9 @@ export default function DashboardClient() {
     const result = await fetchTransactions()
 
     if (result.success && result.data) {
-      // 성공: 백엔드 데이터 변환
+      // 성공: 백엔드 데이터 변환 후 최신순(날짜 내림차순) 정렬
       newTransactions = transformBackendTransactions(result.data)
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
       setTransactions(newTransactions)
       syncBlacklist(newTransactions)
       setConnectionStatus("connected")
@@ -182,7 +202,12 @@ export default function DashboardClient() {
     }
 
     const result = await patchTransaction(transactionId, {
-      riskLevel: newRisk === "normal" ? "정상" : "위험",
+      riskLevel:
+        newRisk === "normal"
+          ? "정상"
+          : newRisk === "caution"
+            ? "주의"
+            : "위험",
       manualRiskLevel: newRisk,
       suspiciousReason: updatedReason,
       operatorAssigned: true,
@@ -222,41 +247,55 @@ export default function DashboardClient() {
       relatedTransactionId: transaction.id,
     }
 
-    const isDuplicate = blacklist.some((e) => e.accountNumber === newEntry.accountNumber)
-    if (isDuplicate) {
+    const targetTransaction = transactions.find((tx: Transaction) => tx.id === transaction.id)
+    if (!targetTransaction) {
       toast({
-        title: "이미 블랙리스트에 등록된 계좌입니다.",
+        title: "거래 정보를 찾을 수 없습니다.",
         variant: "destructive",
         duration: 2000,
       })
       return
     }
 
-    const targetTransaction = transactions.find((tx) => tx.id === transaction.id)
-    if (!targetTransaction) {
-      return
-    }
+    const currentBlacklistStatus = targetTransaction.is_blacklist ?? 0
+    const isRegistering = currentBlacklistStatus === 0
+    const updatedBlacklistStatus: 0 | 1 | 2 | 3 = isRegistering ? 2 : 0
 
-    const updatedBlacklistStatus = ((targetTransaction.is_blacklist || 0) | 2) as 0 | 1 | 2 | 3
     const updatedTransaction: Transaction = {
       ...targetTransaction,
       is_blacklist: updatedBlacklistStatus,
-      operatorAssigned: true,
+      operatorAssigned: isRegistering,
+      // 블랙리스트 등록: 경고 + 사기계좌, 해제: 정상 + none
+      riskLevel: isRegistering ? "warning" : "normal",
+      suspiciousReason: isRegistering ? "fraud_account" : "none",
     }
 
-    setTransactions((prev) => prev.map((tx) => (tx.id === transaction.id ? updatedTransaction : tx)))
-    setSelectedTransaction((prev) =>
+    setTransactions((prev: Transaction[]) =>
+      prev.map((tx: Transaction) =>
+        tx.id === transaction.id ? updatedTransaction : tx
+      )
+    )
+
+    setSelectedTransaction((prev: Transaction | null) =>
       prev && prev.id === transaction.id ? updatedTransaction : prev
     )
-    setBlacklist((prev) => [...prev, newEntry])
+
+    if (updatedBlacklistStatus === 0) {
+      setBlacklist((prev: BlacklistEntry[]) =>
+        prev.filter((entry) => entry.accountNumber !== newEntry.accountNumber)
+      )
+    } else {
+      setBlacklist((prev: BlacklistEntry[]) => [...prev, newEntry])
+    }
 
     if (USE_BACKEND_API) {
-      const result = await patchTransaction(transaction.id, {
-        is_blacklist: updatedBlacklistStatus,
-        operatorAssigned: true,
+      const response = await fetch(`/api/transactions/${transaction.id}/blacklist`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_blacklist: updatedBlacklistStatus }),
       })
 
-      if (!result.success) {
+      if (!response.ok) {
         toast({
           title: "저장 실패",
           description: "서버에 블랙리스트 등록 내용을 저장하지 못했습니다.",
@@ -274,8 +313,35 @@ export default function DashboardClient() {
     })
   }
 
-  const handleRemoveFromBlacklist = (id: string) => {
-    setBlacklist(prev => prev.filter(entry => entry.id !== id))
+  const handleRemoveFromBlacklist = async (id: string) => {
+    const targetEntry = blacklist.find((entry) => entry.id === id)
+    if (!targetEntry) return
+
+    setBlacklist((prev) => prev.filter((entry) => entry.id !== id))
+
+    setTransactions((prev) =>
+      prev.map((tx) =>
+        tx.id === targetEntry.relatedTransactionId
+          ? { ...tx, is_blacklist: 0 as const, operatorAssigned: false, riskLevel: "normal", suspiciousReason: "none" }
+          : tx
+      )
+    )
+
+    if (USE_BACKEND_API) {
+      const response = await fetch(
+        `/api/transactions/${targetEntry.relatedTransactionId}/blacklist`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_blacklist: 0 }),
+        }
+      )
+
+      if (!response.ok) {
+        await loadTransactions()
+        return
+      }
+    }
   }
 
   const riskAlertConfig = {

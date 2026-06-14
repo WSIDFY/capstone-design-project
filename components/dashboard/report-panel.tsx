@@ -122,7 +122,7 @@ export function ReportPanel({ transaction, onClose, onUpdateRisk, onAddToBlackli
           <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
             <p className="text-sm text-foreground">{report.summary}</p>
             <p className="text-xs text-muted-foreground mt-2">
-              탐지 사유: {getReasonText(transaction.suspiciousReason)}
+              탐지 결과: {getReasonText(transaction.suspiciousReason)}
             </p>
           </div>
         </div>

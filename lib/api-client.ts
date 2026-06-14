@@ -168,7 +168,7 @@ export async function fetchTransactions(
  * 백엔드 위험도/수정 정보 저장용 요청 바디
  */
 export interface TransactionUpdatePayload {
-  riskLevel?: "정상" | "위험"
+  riskLevel?: "정상" | "주의" | "위험"
   manualRiskLevel?: RiskLevel
   suspiciousReason?: SuspiciousReason
   manualSuspiciousReason?: SuspiciousReason

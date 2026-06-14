@@ -82,7 +82,7 @@ export function TransactionTable({
                 <TableHead className="text-muted-foreground">수취인</TableHead>
                 <TableHead className="text-muted-foreground text-right">금액</TableHead>
                 <TableHead className="text-muted-foreground">위험도</TableHead>
-                <TableHead className="text-muted-foreground">탐지 사유</TableHead>
+                <TableHead className="text-muted-foreground">탐지 결과</TableHead>
                 <TableHead className="text-muted-foreground text-right">작업</TableHead>
               </TableRow>
             </TableHeader>

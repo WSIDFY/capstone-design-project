@@ -76,6 +76,7 @@ export interface CsvTransaction {
    * 3: 송신자 + 수신자 둘 다 블랙리스트
    */
   is_blacklist: 0 | 1 | 2 | 3
+  isBlacklist?: 0 | 1 | 2 | 3
 }
 
 export interface TransactionHistory {
@@ -127,7 +128,7 @@ export interface BackendTransaction {
   oldbalanceDest: number
   newbalanceDest: number
   transactionDate: string // "yyyy-MM-dd HH:mm:ss"
-  riskLevel: "정상" | "위험"
+  riskLevel: "정상" | "주의" | "위험"
   aiReport: string | null // AI 보고서 텍스트. 정상거래는 null
   /**
    * 블랙리스트 여부
@@ -137,6 +138,7 @@ export interface BackendTransaction {
    * 3: 송신자 + 수신자 둘 다 블랙리스트
    */
   is_blacklist?: 0 | 1 | 2 | 3
+  isBlacklist?: 0 | 1 | 2 | 3
   manualRiskLevel?: "normal" | "caution" | "warning"
   operatorAssigned?: boolean
   manualSuspiciousReason?: SuspiciousReason
