@@ -67,7 +67,7 @@ export default function DashboardClient() {
   // 실시간 자동갱신: 10초마다 거래 내역 새로고침 (페이지 전체 새로고침 없이 로그만 갱신)
   useEffect(() => {
     if (!USE_BACKEND_API) return
-    const POLL_INTERVAL = 10_000
+  const POLL_INTERVAL = 3_000
     const intervalId = setInterval(() => {
       // 백그라운드 폴링: 로딩 스피너 없이 조용히 갱신
       fetchTransactions().then((result) => {

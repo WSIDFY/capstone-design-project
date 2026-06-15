@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { AlertTriangle, AlertCircle, CheckCircle, MoreHorizontal, FileText, UserX } from "lucide-react"
 import type { Transaction, RiskLevel } from "@/lib/transaction-types"
-import { formatAmount, formatDate, getRiskText, getReasonText } from "@/lib/transaction-generator"
+import { formatAmount, formatDate, getRiskText } from "@/lib/transaction-generator"
 import { getRiskColor } from "@/lib/ai-detection"
 
 interface TransactionTableProps {
@@ -61,6 +61,25 @@ export function TransactionTable({
         return <CheckCircle className="h-4 w-4" />
     }
   }
+  const getDetectionText = (tx: Transaction) => {
+  if (tx.is_blacklist > 0 || tx.suspiciousReason === "fraud_account") {
+    return "블랙리스트 거래"
+  }
+
+  if (tx.suspiciousReason === "money_laundering") {
+    return "자금세탁 의심"
+  }
+
+  if (tx.suspiciousReason === "first_large_transfer") {
+    return "보이스 피싱 의심"
+  }
+
+  if (tx.riskLevel === "normal") {
+    return "정상"
+  }
+
+  return "이상거래"
+}
 
   return (
     <Card className="bg-card border-border">
@@ -125,7 +144,7 @@ export function TransactionTable({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
-                      {getReasonText(tx.suspiciousReason)}
+                      {getDetectionText(tx)}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>

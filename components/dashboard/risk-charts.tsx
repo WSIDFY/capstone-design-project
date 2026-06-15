@@ -1,3 +1,4 @@
+// ...existing code...
 "use client"
 
 import { useEffect, useState } from "react"
@@ -23,7 +24,7 @@ export function RiskCharts({ stats }: RiskChartsProps) {
   ]
 
   const reasonColorMap: Record<string, string> = {
-    "보이스피싱": "#8b5cf6",
+    "보이스 피싱": "#8b5cf6",
     "카드도난": "#06b6d4",
     "사기계좌": "#ef4444",
     "자금세탁": "#f97316",
@@ -31,7 +32,7 @@ export function RiskCharts({ stats }: RiskChartsProps) {
 
   const reasonData = [
     { 
-      name: "보이스피싱", 
+      name: "보이스 피싱", 
       count: stats.suspiciousByReason.first_large_transfer,
       fill: "#8b5cf6"
     },
@@ -140,10 +141,10 @@ export function RiskCharts({ stats }: RiskChartsProps) {
                     fontSize: "12px",
                     marginBottom: "4px"
                   }}
-                  formatter={(value: number, _name: string, props: { payload: { name: string; color: string } }) => [
-                    <span key="value" style={{ color: props.payload.color, fontWeight: 600 }}>{value}건</span>,
-                    props.payload.name
-                  ]}
+                  formatter={(value: number, _name: string, props: any) => {
+                    const name = props?.payload?.name ?? _name
+                    return [`${value}건`, String(name)]
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -207,10 +208,9 @@ export function RiskCharts({ stats }: RiskChartsProps) {
                     marginBottom: "4px"
                   }}
                   cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
-                  formatter={(value: number, _name: string, props: { payload: { name: string; fill: string } }) => [
-                    <span key="value" style={{ color: props.payload.fill, fontWeight: 600 }}>{value}건</span>,
-                    "탐지 건수"
-                  ]}
+                  formatter={(value: number, _name: string, props: any) => {
+                    return [`${value}건`, "탐지 건수"]
+                  }}
                 />
                 <Bar 
                   dataKey="count" 
@@ -229,3 +229,4 @@ export function RiskCharts({ stats }: RiskChartsProps) {
     </div>
   )
 }
+// ...existing code...
