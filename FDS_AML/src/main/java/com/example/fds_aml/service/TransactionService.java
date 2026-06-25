@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.beans.factory.annotation.Value;
+import com.example.fds_aml.dto.RiskUpdateRequestDto;
+import com.example.fds_aml.dto.BlacklistUpdateRequestDto;
 import java.util.List;
 
 @Service
@@ -22,6 +24,12 @@ public class TransactionService {
     private String aiServerUrl;
 
     public Transaction processTransaction(TransactionRequestDto dto) {
+	System.out.println("\n[GENERATOR → BACKEND] 거래 수신");
+System.out.println("type=" + dto.getType()
+        + ", amount=" + dto.getAmount()
+        + ", sender=" + dto.getSender()
+        + ", receiver=" + dto.getReceiver()
+        + ", is_blacklist=" + dto.getIsBlacklist());
         Transaction transaction = new Transaction();
         transaction.setStep(dto.getStep());
         transaction.setType(dto.getType());
@@ -36,9 +44,15 @@ public class TransactionService {
         transaction.setIsBlacklist(dto.getIsBlacklist());
 
         Transaction savedTransaction = transactionRepository.save(transaction);
+	System.out.println("[DB 저장 완료] transactionId=" + savedTransaction.getId());
 
         try {
-            AiAnalysisResponseDto aiResponse = restTemplate.postForObject(aiServerUrl, dto, AiAnalysisResponseDto.class);
+	System.out.println("[AI 서버 호출] " + aiServerUrl);
+        AiAnalysisResponseDto aiResponse = restTemplate.postForObject(aiServerUrl, dto, AiAnalysisResponseDto.class);
+	if (aiResponse != null) {
+    System.out.println("[AI 응답] suspicious=" + aiResponse.isSuspicious()
+            + ", probability=" + aiResponse.getFraudProbability());
+}
 
             if (aiResponse != null && aiResponse.isSuspicious()) {
                 savedTransaction.setRiskLevel("위험");
@@ -53,6 +67,9 @@ public class TransactionService {
         } catch (Exception e) {
             System.out.println("AI 서버 통신 에러 " + e.getMessage());
         }
+	System.out.println("[최종 저장 완료] id=" + savedTransaction.getId()
+        + ", riskLevel=" + savedTransaction.getRiskLevel()
+        + ", aiReport=" + (savedTransaction.getAiReport() != null ? "생성됨" : "없음"));
 
         return savedTransaction;
     }
@@ -60,4 +77,33 @@ public class TransactionService {
     public List<Transaction> findAllTransactions() {
         return transactionRepository.findAll();
     }
+
+public Transaction updateRisk(Long id, RiskUpdateRequestDto dto) {
+    Transaction transaction = transactionRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("거래 내역을 찾을 수 없습니다."));
+
+    transaction.setRiskLevel(dto.getRiskLevel());
+
+    return transactionRepository.save(transaction);
+}
+public Transaction updateBlacklist(Long id, BlacklistUpdateRequestDto dto) {
+
+    Transaction transaction = transactionRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("거래 내역을 찾을 수 없습니다."));
+
+        Integer blacklistValue = dto.getIsBlacklist();
+
+    transaction.setIsBlacklist(blacklistValue);
+
+    // 블랙리스트 등록 시 해당 거래만 위험으로 변경
+    if (blacklistValue != null && blacklistValue != 0) {
+        transaction.setRiskLevel("위험");
+    }
+    // 블랙리스트 해제 시 해당 거래만 정상으로 변경
+    else {
+        transaction.setRiskLevel("정상");
+    }
+
+    return transactionRepository.save(transaction);
+}
 }
