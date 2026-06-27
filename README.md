@@ -1,6 +1,6 @@
 # 이상금융거래(FDS)탐지 및 자금세탁(AML) 방지 시스템 개발
 
-<img src="xgboost_dev/img/top_view.png" width="100px" alt="top_view"/>
+<img src="xgboost_dev/img/top_view.png" width="600px" alt="top_view"/>
 
 ### 팀원 소개
 
@@ -334,18 +334,22 @@ def _create_rule_evidence(self, is_phishing_pattern, is_chain_laundering,
 ---
 ## Page UI & UX
 
-- Main Dashboard
+- ***Main Dashboard***
+<p align="center">
+<img src="xgboost_dev/img/main_ui_01.png" width="800px" alt="main_ui_01"/>
+</p>
 
-<img src="xgboost_dev/img/main_ui_01.png" width="100px" alt="main_ui_01"/>
+- ***AI Report***
+<p align="center">
+<img src="xgboost_dev/img/ui_report_01.png" width="800px" alt="ui_report_01"/>
+</p>
 
-- AI Report
+- ***Blacklist Management***
+<p align="center">
+<img src="xgboost_dev/img/ui_blacklist_01.png" width="5700px" alt="ui_blacklist_01"/>
+</p>
 
-<img src="xgboost_dev/img/ui_report_01.png" width="100px" alt="ui_report_01"/>
-
-- Blacklist Management
-
-<img src="xgboost_dev/img/ui_blacklist_01.png" width="100px" alt="ui_blacklist_01"/>
-
-- activate Menu btn
-
-<img src="xgboost_dev/img/ui_menu_01.png" width="100px" alt="ui_menu_01"/>
+- ***activate Menu btn***
+<p align="center">
+<img src="xgboost_dev/img/ui_menu_01.png" width="600px" alt="ui_menu_01"/>
+</p>
