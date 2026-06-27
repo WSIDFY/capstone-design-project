@@ -346,7 +346,7 @@ def _create_rule_evidence(self, is_phishing_pattern, is_chain_laundering,
 
 - ***Blacklist Management***
 <p align="center">
-<img src="xgboost_dev/img/ui_blacklist_01.png" width="5700px" alt="ui_blacklist_01"/>
+<img src="xgboost_dev/img/ui_blacklist_01.png" width="800px" alt="ui_blacklist_01"/>
 </p>
 
 - ***activate Menu btn***
